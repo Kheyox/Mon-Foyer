@@ -36,7 +36,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -57,6 +56,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -301,6 +301,17 @@ class MonFoyerViewModel : ViewModel() {
     fun delete(collection: String, id: String) {
         val household = state.household ?: return
         db.collection("households").document(household.id).collection(collection).document(id).delete()
+    }
+
+    fun deleteCheckedShoppingItems() {
+        val household = state.household ?: return
+        val checkedItems = state.shopping.filter { it.done }
+        if (checkedItems.isEmpty()) return
+        val batch = db.batch()
+        checkedItems.forEach { item ->
+            batch.delete(db.collection("households").document(household.id).collection("shoppingItems").document(item.id))
+        }
+        batch.commit().addOnFailureListener { setError(it.message ?: "Suppression impossible.") }
     }
 
     private fun add(collection: String, values: Map<String, Any>) {
@@ -652,11 +663,18 @@ fun HomeMenu(expanded: Boolean, onDismiss: () -> Unit, onSelect: (Tab) -> Unit, 
 @Composable
 fun ShoppingScreen(vm: MonFoyerViewModel) {
     var name by remember { mutableStateOf("") }
+    val checkedCount = vm.state.shopping.count { it.done }
     ModulePanel(title = "Liste de course") {
         item {
             QuickAdd(value = name, onChange = { name = it }, label = "Ajouter un article...") {
                 vm.addShoppingItem(name)
                 name = ""
+            }
+            if (checkedCount > 0) {
+                SecondaryButton(text = "Supprimer elements coches ($checkedCount)", icon = Icons.Filled.Delete) {
+                    vm.deleteCheckedShoppingItems()
+                }
+                Spacer(Modifier.height(10.dp))
             }
         }
         items(vm.state.shopping) { item ->
@@ -820,6 +838,7 @@ fun TasksScreen(vm: MonFoyerViewModel) {
 @Composable
 fun BirthdaysScreen(vm: MonFoyerViewModel) {
     var showAddSheet by remember { mutableStateOf(false) }
+    var birthdayToDelete by remember { mutableStateOf<Birthday?>(null) }
     ModulePanel(title = "Anniversaires") {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -834,7 +853,7 @@ fun BirthdaysScreen(vm: MonFoyerViewModel) {
             }
         }
         items(vm.state.birthdays.sortedBy { it.nextBirthday() }) { birthday ->
-            BirthdayRow(birthday) { vm.delete("birthdays", birthday.id) }
+            BirthdayRow(birthday) { birthdayToDelete = birthday }
         }
     }
     if (showAddSheet) {
@@ -844,6 +863,17 @@ fun BirthdaysScreen(vm: MonFoyerViewModel) {
                 vm.addBirthday(name, date, year)
                 showAddSheet = false
             }
+        )
+    }
+    birthdayToDelete?.let { birthday ->
+        ConfirmDeleteDialog(
+            title = "Supprimer cet anniversaire ?",
+            message = "L'anniversaire de ${birthday.name} sera retire du foyer.",
+            onConfirm = {
+                vm.delete("birthdays", birthday.id)
+                birthdayToDelete = null
+            },
+            onDismiss = { birthdayToDelete = null }
         )
     }
 }
@@ -1094,6 +1124,33 @@ fun BirthdayRow(birthday: Birthday, onDelete: () -> Unit) {
     }
 }
 
+@Composable
+fun ConfirmDeleteDialog(title: String, message: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Black, color = Ink) },
+        text = { Text(message, color = Muted) },
+        confirmButton = {
+            Text(
+                "Supprimer",
+                color = Color(0xFFE86675),
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.clickable(onClick = onConfirm).padding(12.dp)
+            )
+        },
+        dismissButton = {
+            Text(
+                "Annuler",
+                color = DeepGreen,
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.clickable(onClick = onDismiss).padding(12.dp)
+            )
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(24.dp)
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddBirthdaySheet(onDismiss: () -> Unit, onAdd: (String, LocalDate, String) -> Unit) {
@@ -1126,15 +1183,6 @@ fun AddBirthdaySheet(onDismiss: () -> Unit, onAdd: (String, LocalDate, String) -
                 Surface(color = SoftGrey, shape = CircleShape, modifier = Modifier.size(132.dp)) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.Person, contentDescription = null, tint = Muted, modifier = Modifier.size(68.dp))
-                    }
-                }
-                Surface(
-                    color = DeepGreen,
-                    shape = CircleShape,
-                    modifier = Modifier.offset(x = 48.dp, y = 46.dp).size(42.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(23.dp))
                     }
                 }
             }
