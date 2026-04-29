@@ -2,6 +2,7 @@ package com.bibliostudio.monfoyer
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -40,6 +41,9 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
@@ -50,6 +54,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -484,12 +490,16 @@ fun HouseholdGate(vm: MonFoyerViewModel) {
 @Composable
 fun HomeShell(vm: MonFoyerViewModel) {
     val context = LocalContext.current as ComponentActivity
+    BackHandler(enabled = vm.state.selectedTab != Tab.Home) {
+        vm.select(Tab.Home)
+    }
     Box(Modifier.fillMaxSize().background(Cream).systemBarsPadding()) {
         Column(Modifier.fillMaxSize()) {
             AppHeader(
                 activeTab = vm.state.selectedTab,
                 householdName = vm.state.household?.name ?: "Mon Foyer",
                 onHome = { vm.select(Tab.Home) },
+                onSelect = { vm.select(it) },
                 onSignOut = { vm.signOut(context) }
             )
             vm.state.error?.let { ErrorText(it, Modifier.padding(horizontal = 24.dp)) }
@@ -509,11 +519,26 @@ fun HomeShell(vm: MonFoyerViewModel) {
 }
 
 @Composable
-fun AppHeader(activeTab: Tab, householdName: String, onHome: () -> Unit, onSignOut: () -> Unit) {
+fun AppHeader(activeTab: Tab, householdName: String, onHome: () -> Unit, onSelect: (Tab) -> Unit, onSignOut: () -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             BrandLogo(Modifier.weight(1f))
-            FlowerMark()
+            Box {
+                RoundIconButton(icon = Icons.Filled.MoreVert, tint = DeepGreen, onClick = { menuOpen = true })
+                HomeMenu(
+                    expanded = menuOpen,
+                    onDismiss = { menuOpen = false },
+                    onSelect = {
+                        menuOpen = false
+                        onSelect(it)
+                    },
+                    onSignOut = {
+                        menuOpen = false
+                        onSignOut()
+                    }
+                )
+            }
             Spacer(Modifier.width(14.dp))
             RoundIconButton(icon = Icons.Filled.Logout, tint = Muted, onClick = onSignOut)
         }
@@ -598,6 +623,24 @@ fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
 }
 
 @Composable
+fun HomeMenu(expanded: Boolean, onDismiss: () -> Unit, onSelect: (Tab) -> Unit, onSignOut: () -> Unit) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = Color.White) {
+        listOf(Tab.Home, Tab.Shopping, Tab.Calendar, Tab.Tasks, Tab.Birthdays, Tab.Budget, Tab.Notes, Tab.Members).forEach { tab ->
+            DropdownMenuItem(
+                text = { Text(tab.label, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                leadingIcon = { Icon(tab.icon, contentDescription = null, tint = DeepGreen) },
+                onClick = { onSelect(tab) }
+            )
+        }
+        DropdownMenuItem(
+            text = { Text("Deconnexion", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+            leadingIcon = { Icon(Icons.Filled.Logout, contentDescription = null, tint = Muted) },
+            onClick = onSignOut
+        )
+    }
+}
+
+@Composable
 fun ShoppingScreen(vm: MonFoyerViewModel) {
     var name by remember { mutableStateOf("") }
     ModulePanel(title = "Liste de course") {
@@ -674,8 +717,14 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
                 month = visibleMonth,
                 selectedDate = selectedDate,
                 events = vm.state.events,
-                onPrevious = { visibleMonth = visibleMonth.minusMonths(1) },
-                onNext = { visibleMonth = visibleMonth.plusMonths(1) },
+                onPrevious = {
+                    visibleMonth = visibleMonth.minusMonths(1)
+                    selectedDate = visibleMonth.atDay(1)
+                },
+                onNext = {
+                    visibleMonth = visibleMonth.plusMonths(1)
+                    selectedDate = visibleMonth.atDay(1)
+                },
                 onDateSelected = {
                     selectedDate = it
                     visibleMonth = YearMonth.from(it)
@@ -776,8 +825,14 @@ fun BirthdaysScreen(vm: MonFoyerViewModel) {
                 month = visibleMonth,
                 selectedDate = selectedDate,
                 events = vm.state.birthdays.mapNotNull { it.markerEvent(visibleMonth.year) },
-                onPrevious = { visibleMonth = visibleMonth.minusMonths(1) },
-                onNext = { visibleMonth = visibleMonth.plusMonths(1) },
+                onPrevious = {
+                    visibleMonth = visibleMonth.minusMonths(1)
+                    selectedDate = visibleMonth.atDay(1)
+                },
+                onNext = {
+                    visibleMonth = visibleMonth.plusMonths(1)
+                    selectedDate = visibleMonth.atDay(1)
+                },
                 onDateSelected = {
                     selectedDate = it
                     visibleMonth = YearMonth.from(it)
@@ -904,9 +959,9 @@ fun CalendarMonthView(
     Column {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text("$monthTitle ${month.year}", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
-            RoundIconButton(icon = Icons.Filled.CalendarMonth, tint = Muted, onClick = onPrevious)
+            RoundIconButton(icon = Icons.Filled.ChevronLeft, tint = Muted, onClick = onPrevious)
             Spacer(Modifier.width(8.dp))
-            RoundIconButton(icon = Icons.Filled.Add, tint = DeepGreen, onClick = onNext)
+            RoundIconButton(icon = Icons.Filled.ChevronRight, tint = DeepGreen, onClick = onNext)
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
