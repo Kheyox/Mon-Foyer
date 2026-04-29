@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
@@ -71,6 +72,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -1266,19 +1268,18 @@ fun <T> PickerColumn(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val selectedIndex = values.indexOf(selected).coerceAtLeast(0)
-    val visible = buildList {
-        add(values.getOrNull(selectedIndex - 2))
-        add(values.getOrNull(selectedIndex - 1))
-        add(values.getOrNull(selectedIndex))
-        add(values.getOrNull(selectedIndex + 1))
-        add(values.getOrNull(selectedIndex + 2))
+    val listState = rememberLazyListState()
+    LaunchedEffect(values, selected) {
+        val index = values.indexOf(selected).coerceAtLeast(0)
+        listState.scrollToItem(index)
     }
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        visible.forEach { value ->
-            if (value == null) {
-                Spacer(Modifier.height(44.dp))
-            } else {
+    Box(modifier.height(238.dp)) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(values) { value ->
                 val isSelected = value == selected
                 Surface(
                     color = if (isSelected) SoftGrey else Color.Transparent,
@@ -1290,7 +1291,9 @@ fun <T> PickerColumn(
                             label(value),
                             fontSize = if (isSelected) 26.sp else 22.sp,
                             fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                            color = if (isSelected) Ink else Muted
+                            color = if (isSelected) Ink else Muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
