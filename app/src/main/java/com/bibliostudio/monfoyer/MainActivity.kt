@@ -91,6 +91,11 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.absoluteValue
 
 data class Household(val id: String = "", val name: String = "Mon foyer", val inviteCode: String = "")
@@ -99,6 +104,8 @@ data class ShoppingItem(val id: String = "", val name: String = "", val done: Bo
 data class Bill(val id: String = "", val label: String = "", val amount: Double = 0.0, val paid: Boolean = false)
 data class Event(val id: String = "", val title: String = "", val owner: String = "", val date: String = "")
 data class Note(val id: String = "", val title: String = "", val body: String = "")
+data class HouseholdTask(val id: String = "", val title: String = "", val assigneeId: String = "", val assigneeName: String = "", val done: Boolean = false, val color: Long = 0xFF174C43)
+data class Birthday(val id: String = "", val name: String = "", val date: String = "", val birthYear: Int = 0)
 
 data class AppUiState(
     val signedIn: Boolean = false,
@@ -109,6 +116,8 @@ data class AppUiState(
     val bills: List<Bill> = emptyList(),
     val events: List<Event> = emptyList(),
     val notes: List<Note> = emptyList(),
+    val tasks: List<HouseholdTask> = emptyList(),
+    val birthdays: List<Birthday> = emptyList(),
     val monthlyBudget: Double = 0.0,
     val selectedTab: Tab = Tab.Home,
     val loading: Boolean = true,
@@ -118,8 +127,10 @@ data class AppUiState(
 enum class Tab(val label: String, val icon: ImageVector) {
     Home("Accueil", Icons.Filled.Home),
     Shopping("Courses", Icons.Filled.ShoppingCart),
+    Tasks("Taches", Icons.Filled.CheckCircle),
     Budget("Budget", Icons.Filled.Payments),
     Calendar("Agenda", Icons.Filled.CalendarMonth),
+    Birthdays("Anniversaires", Icons.Filled.Group),
     Notes("Notes", Icons.Filled.EditNote),
     Members("Foyer", Icons.Filled.Group)
 }
@@ -239,11 +250,39 @@ class MonFoyerViewModel : ViewModel() {
 
     fun addShoppingItem(name: String) = add("shoppingItems", mapOf("name" to name, "done" to false))
     fun addBill(label: String, amount: String) = add("bills", mapOf("label" to label, "amount" to (amount.toDoubleOrNull() ?: 0.0), "paid" to false))
-    fun addEvent(title: String, owner: String, date: String) = add("events", mapOf("title" to title, "owner" to owner, "date" to date))
+    fun addEvent(title: String, owner: String, date: String) {
+        if (title.isBlank()) return
+        add("events", mapOf("title" to title, "owner" to owner, "date" to date))
+    }
     fun addNote(title: String, body: String) = add("notes", mapOf("title" to title, "body" to body))
+    fun addTask(title: String, member: Member?) {
+        if (title.isBlank()) return
+        add(
+            "tasks",
+            mapOf(
+                "title" to title,
+                "assigneeId" to (member?.id ?: ""),
+                "assigneeName" to (member?.name ?: "A assigner"),
+                "color" to memberColorLong(member?.id ?: title),
+                "done" to false
+            )
+        )
+    }
+    fun addBirthday(name: String, date: LocalDate, birthYear: String) {
+        if (name.isBlank()) return
+        add(
+            "birthdays",
+            mapOf(
+                "name" to name,
+                "date" to date.format(DateTimeFormatter.ISO_DATE),
+                "birthYear" to (birthYear.toIntOrNull() ?: 0)
+            )
+        )
+    }
 
     fun toggleShopping(item: ShoppingItem) = update("shoppingItems", item.id, "done", !item.done)
     fun toggleBill(bill: Bill) = update("bills", bill.id, "paid", !bill.paid)
+    fun toggleTask(task: HouseholdTask) = update("tasks", task.id, "done", !task.done)
     fun delete(collection: String, id: String) {
         val household = state.household ?: return
         db.collection("households").document(household.id).collection(collection).document(id).delete()
@@ -308,6 +347,28 @@ class MonFoyerViewModel : ViewModel() {
         }
         listeners += householdRef.collection("notes").addSnapshotListener { snap, _ ->
             state = state.copy(notes = snap?.documents?.map { Note(it.id, it.getString("title") ?: "", it.getString("body") ?: "") }.orEmpty())
+        }
+        listeners += householdRef.collection("tasks").addSnapshotListener { snap, _ ->
+            state = state.copy(tasks = snap?.documents?.map {
+                HouseholdTask(
+                    id = it.id,
+                    title = it.getString("title") ?: "",
+                    assigneeId = it.getString("assigneeId") ?: "",
+                    assigneeName = it.getString("assigneeName") ?: "",
+                    done = it.getBoolean("done") ?: false,
+                    color = it.getLong("color") ?: 0xFF174C43
+                )
+            }.orEmpty())
+        }
+        listeners += householdRef.collection("birthdays").addSnapshotListener { snap, _ ->
+            state = state.copy(birthdays = snap?.documents?.map {
+                Birthday(
+                    id = it.id,
+                    name = it.getString("name") ?: "",
+                    date = it.getString("date") ?: "",
+                    birthYear = (it.getLong("birthYear") ?: 0).toInt()
+                )
+            }.orEmpty())
         }
     }
 
@@ -435,8 +496,10 @@ fun HomeShell(vm: MonFoyerViewModel) {
             when (vm.state.selectedTab) {
                 Tab.Home -> Dashboard(vm)
                 Tab.Shopping -> ShoppingScreen(vm)
+                Tab.Tasks -> TasksScreen(vm)
                 Tab.Budget -> BudgetScreen(vm)
                 Tab.Calendar -> AgendaScreen(vm)
+                Tab.Birthdays -> BirthdaysScreen(vm)
                 Tab.Notes -> NotesScreen(vm)
                 Tab.Members -> MembersScreen(vm)
             }
@@ -478,8 +541,10 @@ fun Dashboard(vm: MonFoyerViewModel) {
     val modules = listOf(
         ModuleTile(Tab.Shopping, "Courses", "Liste partagee", state.shopping.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Mint, Color(0xFF86D6C3)), Icons.Filled.ShoppingCart),
         ModuleTile(Tab.Calendar, "Calendrier", "Agenda du foyer", state.events.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFF2B8), Lemon), Icons.Filled.CalendarMonth),
+        ModuleTile(Tab.Tasks, "Taches", "Qui fait quoi", state.tasks.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFA9E8DD), Color(0xFFD5F3A5)), Icons.Filled.CheckCircle),
         ModuleTile(Tab.Notes, "Notes", "Pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Coral, Color(0xFFFFB6BF)), Icons.Filled.EditNote),
         ModuleTile(Tab.Budget, "Budget", "Factures et reste", null, listOf(Color(0xFFFFD6C8), Color(0xFFA7E0D2)), Icons.Filled.Payments),
+        ModuleTile(Tab.Birthdays, "Anniversaires", "Dates importantes", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFADEBDD), Color(0xFFFFE8A6)), Icons.Filled.Group),
         ModuleTile(Tab.Members, "Foyer", "Membres et code", state.members.size.toString(), listOf(Sky, Color(0xFFD7F0F5)), Icons.Filled.Group)
     )
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
@@ -597,23 +662,48 @@ fun BudgetScreen(vm: MonFoyerViewModel) {
 @Composable
 fun AgendaScreen(vm: MonFoyerViewModel) {
     var title by remember { mutableStateOf("") }
-    var owner by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var visibleMonth by remember { mutableStateOf(YearMonth.from(selectedDate)) }
+    var selectedMemberId by remember(vm.state.members) { mutableStateOf(vm.state.members.firstOrNull()?.id.orEmpty()) }
+    val selectedMember = vm.state.members.firstOrNull { it.id == selectedMemberId }
+    val selectedDateText = selectedDate.format(DateTimeFormatter.ISO_DATE)
+    val selectedEvents = vm.state.events.filter { it.date == selectedDateText }
     ModulePanel(title = "Calendrier") {
         item {
-            MonthPreview()
+            CalendarMonthView(
+                month = visibleMonth,
+                selectedDate = selectedDate,
+                events = vm.state.events,
+                onPrevious = { visibleMonth = visibleMonth.minusMonths(1) },
+                onNext = { visibleMonth = visibleMonth.plusMonths(1) },
+                onDateSelected = {
+                    selectedDate = it
+                    visibleMonth = YearMonth.from(it)
+                }
+            )
             Spacer(Modifier.height(18.dp))
+            if (selectedEvents.isEmpty()) {
+                Text("Aucun evenement ce jour", color = Muted, fontSize = 18.sp)
+            } else {
+                selectedEvents.forEach { event ->
+                    CalendarEventPill(event)
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
             SoftInput(value = title, onValueChange = { title = it }, label = "Nom de l'evenement")
             Spacer(Modifier.height(10.dp))
-            SoftInput(value = owner, onValueChange = { owner = it }, label = "Pour qui ?")
+            MemberPicker(
+                members = vm.state.members,
+                selectedMemberId = selectedMemberId,
+                onSelect = { selectedMemberId = it }
+            )
             Spacer(Modifier.height(10.dp))
-            SoftInput(value = date, onValueChange = { date = it }, label = "Date")
+            DateChip(selectedDate)
             Spacer(Modifier.height(10.dp))
             PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
-                vm.addEvent(title, owner, date)
+                vm.addEvent(title, selectedMember?.name ?: "Tout le foyer", selectedDateText)
                 title = ""
-                owner = ""
-                date = ""
             }
         }
         items(vm.state.events) { event ->
@@ -624,6 +714,90 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
                 }
                 DeleteButton { vm.delete("events", event.id) }
             }
+        }
+    }
+}
+
+@Composable
+fun TasksScreen(vm: MonFoyerViewModel) {
+    var title by remember { mutableStateOf("") }
+    var selectedMemberId by remember(vm.state.members) { mutableStateOf(vm.state.members.firstOrNull()?.id.orEmpty()) }
+    val selectedMember = vm.state.members.firstOrNull { it.id == selectedMemberId }
+    ModulePanel(title = "Taches") {
+        item {
+            SoftInput(value = title, onValueChange = { title = it }, label = "Nouvelle tache")
+            Spacer(Modifier.height(10.dp))
+            MemberPicker(
+                members = vm.state.members,
+                selectedMemberId = selectedMemberId,
+                onSelect = { selectedMemberId = it }
+            )
+            Spacer(Modifier.height(10.dp))
+            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
+                vm.addTask(title, selectedMember)
+                title = ""
+            }
+        }
+        items(vm.state.tasks) { task ->
+            ListRow {
+                val color = Color(task.color)
+                Surface(color = color.copy(alpha = 0.14f), shape = CircleShape, modifier = Modifier.size(50.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        IconButton(onClick = { vm.toggleTask(task) }) {
+                            Icon(if (task.done) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Etat", tint = color, modifier = Modifier.size(32.dp))
+                        }
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(task.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(task.assigneeName.ifBlank { "A assigner" }, fontSize = 16.sp, color = color, fontWeight = FontWeight.SemiBold)
+                }
+                DeleteButton { vm.delete("tasks", task.id) }
+            }
+        }
+    }
+}
+
+@Composable
+fun BirthdaysScreen(vm: MonFoyerViewModel) {
+    var name by remember { mutableStateOf("") }
+    var birthYear by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var visibleMonth by remember { mutableStateOf(YearMonth.from(selectedDate)) }
+    ModulePanel(title = "Anniversaires") {
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                RoundIconButton(icon = Icons.Filled.CalendarMonth, tint = Muted, onClick = {})
+                RoundIconButton(icon = Icons.Filled.Add, tint = DeepGreen, onClick = {})
+            }
+            Spacer(Modifier.height(16.dp))
+            CalendarMonthView(
+                month = visibleMonth,
+                selectedDate = selectedDate,
+                events = vm.state.birthdays.mapNotNull { it.markerEvent(visibleMonth.year) },
+                onPrevious = { visibleMonth = visibleMonth.minusMonths(1) },
+                onNext = { visibleMonth = visibleMonth.plusMonths(1) },
+                onDateSelected = {
+                    selectedDate = it
+                    visibleMonth = YearMonth.from(it)
+                }
+            )
+            Spacer(Modifier.height(12.dp))
+            SoftInput(value = name, onValueChange = { name = it }, label = "Prenom")
+            Spacer(Modifier.height(10.dp))
+            SoftInput(value = birthYear, onValueChange = { birthYear = it }, label = "Annee de naissance", keyboardType = KeyboardType.Number)
+            Spacer(Modifier.height(10.dp))
+            DateChip(selectedDate)
+            Spacer(Modifier.height(10.dp))
+            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
+                vm.addBirthday(name, selectedDate, birthYear)
+                name = ""
+                birthYear = ""
+            }
+        }
+        items(vm.state.birthdays.sortedBy { it.nextBirthday() }) { birthday ->
+            BirthdayRow(birthday) { vm.delete("birthdays", birthday.id) }
         }
     }
 }
@@ -711,6 +885,187 @@ fun QuickAdd(value: String, onChange: (String) -> Unit, label: String, onAdd: ()
         }
     }
     Spacer(Modifier.height(14.dp))
+}
+
+@Composable
+fun CalendarMonthView(
+    month: YearMonth,
+    selectedDate: LocalDate,
+    events: List<Event>,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onDateSelected: (LocalDate) -> Unit
+) {
+    val firstDay = month.atDay(1)
+    val leading = firstDay.dayOfWeek.value - 1
+    val cells = List(leading) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
+    val monthTitle = month.month.getDisplayName(TextStyle.FULL, Locale.FRANCE)
+        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.FRANCE) else it.toString() }
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("$monthTitle ${month.year}", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+            RoundIconButton(icon = Icons.Filled.CalendarMonth, tint = Muted, onClick = onPrevious)
+            Spacer(Modifier.width(8.dp))
+            RoundIconButton(icon = Icons.Filled.Add, tint = DeepGreen, onClick = onNext)
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            listOf("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.").forEach {
+                Text(it, fontSize = 15.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            userScrollEnabled = false,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.height(356.dp)
+        ) {
+            gridItems(cells) { date ->
+                if (date == null) {
+                    Spacer(Modifier.height(58.dp))
+                } else {
+                    val dateKey = date.format(DateTimeFormatter.ISO_DATE)
+                    val dayEvents = events.filter { it.date == dateKey }
+                    val selected = date == selectedDate
+                    Box(
+                        Modifier
+                            .height(58.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (selected) DeepGreen else SoftGrey)
+                            .clickable { onDateSelected(date) }
+                            .padding(7.dp)
+                    ) {
+                        Text(date.dayOfMonth.toString(), color = if (selected) Color.White else Ink, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                        if (dayEvents.isNotEmpty()) {
+                            Column(Modifier.align(Alignment.BottomStart)) {
+                                dayEvents.take(2).forEach { event ->
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .height(5.dp)
+                                            .clip(RoundedCornerShape(50))
+                                            .background(if (selected) Color.White.copy(alpha = 0.85f) else DeepGreen.copy(alpha = 0.75f))
+                                    )
+                                    Spacer(Modifier.height(3.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CalendarEventPill(event: Event) {
+    Surface(color = DeepGreen.copy(alpha = 0.09f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(DeepGreen))
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(event.title, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Ink)
+                Text(event.owner.ifBlank { "Tout le foyer" }, fontSize = 14.sp, color = DeepGreen, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+fun MemberPicker(members: List<Member>, selectedMemberId: String, onSelect: (String) -> Unit) {
+    Text("Pour qui ?", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Ink)
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        if (members.isEmpty()) {
+            MemberChip(label = "Tout le foyer", selected = selectedMemberId.isBlank(), color = DeepGreen) { onSelect("") }
+        } else {
+            members.take(4).forEach { member ->
+                MemberChip(
+                    label = member.name.ifBlank { "Membre" },
+                    selected = selectedMemberId == member.id,
+                    color = memberColor(member.id)
+                ) { onSelect(member.id) }
+            }
+        }
+    }
+}
+
+@Composable
+fun MemberChip(label: String, selected: Boolean, color: Color, onClick: () -> Unit) {
+    Surface(
+        color = if (selected) color else SoftGrey,
+        shape = RoundedCornerShape(50),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(
+            label,
+            color = if (selected) Color.White else Ink,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+fun DateChip(date: LocalDate) {
+    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(2.dp, DeepGreen), modifier = Modifier.fillMaxWidth()) {
+        Text(
+            date.format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.FRANCE)),
+            color = DeepGreen,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(18.dp)
+        )
+    }
+}
+
+@Composable
+fun BirthdayRow(birthday: Birthday, onDelete: () -> Unit) {
+    val next = birthday.nextBirthday()
+    val age = if (birthday.birthYear > 0) next.year - birthday.birthYear else null
+    val monthsAway = ((next.year - LocalDate.now().year) * 12 + next.monthValue - LocalDate.now().monthValue).coerceAtLeast(0)
+    ListRow {
+        Surface(color = Color(0xFFEAF8EE), shape = RoundedCornerShape(12.dp), modifier = Modifier.size(58.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = Color(0xFF54B568), modifier = Modifier.size(31.dp))
+            }
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(birthday.name, fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
+            Text(next.format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.FRANCE)), fontSize = 15.sp, color = Muted)
+            Text("Dans $monthsAway mois", fontSize = 15.sp, color = Color(0xFF4CAF50))
+        }
+        age?.let {
+            Text("$it ans", fontSize = 19.sp, fontWeight = FontWeight.Black, color = Ink)
+        }
+        DeleteButton(onDelete)
+    }
+}
+
+fun memberColorLong(seed: String): Long {
+    val palette = listOf(0xFF174C43, 0xFFE86675, 0xFFE8A64F, 0xFF5C8EE6, 0xFF8A6FDF, 0xFF2F9C95)
+    return palette[(seed.hashCode().absoluteValue) % palette.size]
+}
+
+fun memberColor(seed: String): Color = Color(memberColorLong(seed))
+
+fun Birthday.markerEvent(year: Int): Event? {
+    val dateValue = runCatching { LocalDate.parse(date) }.getOrNull() ?: return null
+    val markerDate = runCatching { LocalDate.of(year, dateValue.month, dateValue.dayOfMonth) }.getOrNull() ?: return null
+    return Event(id = id, title = name, owner = "Anniversaire", date = markerDate.format(DateTimeFormatter.ISO_DATE))
+}
+
+fun Birthday.nextBirthday(): LocalDate {
+    val value = runCatching { LocalDate.parse(date) }.getOrNull() ?: LocalDate.now()
+    val now = LocalDate.now()
+    val thisYear = runCatching { LocalDate.of(now.year, value.month, value.dayOfMonth) }.getOrDefault(now)
+    return if (thisYear.isBefore(now)) thisYear.plusYears(1) else thisYear
 }
 
 @Composable

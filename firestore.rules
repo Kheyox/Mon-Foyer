@@ -26,7 +26,7 @@ service cloud.firestore {
 
       match /{collection}/{documentId} {
         allow read, write: if householdMember(householdId)
-          && collection in ['shoppingItems', 'bills', 'events', 'notes'];
+          && collection in ['shoppingItems', 'bills', 'events', 'notes', 'tasks', 'birthdays'];
       }
     }
 
@@ -37,4 +37,3 @@ service cloud.firestore {
     }
   }
 }
-
