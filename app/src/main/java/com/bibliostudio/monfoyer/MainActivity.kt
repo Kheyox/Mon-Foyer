@@ -3,7 +3,12 @@ package com.bibliostudio.monfoyer
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -11,11 +16,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -31,19 +44,18 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,12 +65,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -315,18 +332,39 @@ class MonFoyerViewModel : ViewModel() {
     }
 }
 
+private val Cream = Color(0xFFF3F1EC)
+private val DeepGreen = Color(0xFF174C43)
+private val Mint = Color(0xFFAEEBD8)
+private val Lemon = Color(0xFFFFE58F)
+private val Coral = Color(0xFFFF9AA7)
+private val Sky = Color(0xFFA9DDEA)
+private val SoftGrey = Color(0xFFF0EFEC)
+private val Ink = Color(0xFF101010)
+private val Muted = Color(0xFF8C8B88)
+
+data class ModuleTile(
+    val tab: Tab,
+    val title: String,
+    val subtitle: String,
+    val count: String?,
+    val colors: List<Color>,
+    val icon: ImageVector
+)
+
 @Composable
 fun MonFoyerApp(vm: MonFoyerViewModel = viewModel()) {
     val colors = lightColorScheme(
-        primary = Color(0xFF2F6F6A),
-        secondary = Color(0xFFE0A458),
-        tertiary = Color(0xFF8A6FDF),
-        background = Color(0xFFF7F4EE),
-        surface = Color(0xFFFFFBF6),
-        surfaceVariant = Color(0xFFE8E1D8)
+        primary = DeepGreen,
+        secondary = Color(0xFFE8A64F),
+        tertiary = Color(0xFFE86675),
+        background = Cream,
+        surface = Color.White,
+        surfaceVariant = SoftGrey,
+        onPrimary = Color.White,
+        onSurface = Ink
     )
     MaterialTheme(colorScheme = colors) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Surface(modifier = Modifier.fillMaxSize(), color = Cream) {
             when {
                 vm.state.loading -> CenterMessage("Chargement...")
                 !vm.state.signedIn -> SignInScreen(vm)
@@ -342,16 +380,17 @@ fun SignInScreen(vm: MonFoyerViewModel) {
     val context = LocalContext.current as ComponentActivity
     val scope = rememberCoroutineScope()
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().systemBarsPadding().padding(28.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Mon Foyer", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-        Text("Organise les courses, les factures, les agendas et les petites notes du foyer.")
-        Spacer(Modifier.height(24.dp))
-        Button(onClick = {
+        BrandLogo()
+        Spacer(Modifier.height(36.dp))
+        Text("Bienvenue dans ton foyer", fontSize = 38.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, color = Ink)
+        Spacer(Modifier.height(12.dp))
+        Text("Courses, budget, agenda et petites notes au meme endroit.", fontSize = 18.sp, color = Muted)
+        Spacer(Modifier.height(32.dp))
+        PrimaryButton(text = "Continuer avec Google", icon = Icons.Filled.Group) {
             scope.launch { vm.signInWithGoogle(context, context.getString(R.string.web_client_id)) }
-        }) {
-            Text("Continuer avec Google")
         }
         vm.state.error?.let { ErrorText(it) }
     }
@@ -361,53 +400,40 @@ fun SignInScreen(vm: MonFoyerViewModel) {
 fun HouseholdGate(vm: MonFoyerViewModel) {
     var name by remember { mutableStateOf("Mon foyer") }
     var code by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.Center) {
-        Text("Bienvenue ${vm.state.userName}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Cree ton foyer ou rejoins celui d'un proche avec son code.")
-        Spacer(Modifier.height(20.dp))
-        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nom du foyer") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = { vm.createHousehold(name) }, modifier = Modifier.fillMaxWidth()) { Text("Creer mon foyer") }
+    Column(
+        Modifier.fillMaxSize().systemBarsPadding().padding(24.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        BrandLogo()
+        Spacer(Modifier.height(28.dp))
+        Text("Ton espace commun", fontSize = 34.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, color = Ink)
+        Text("Cree ton foyer ou rejoins celui d'un proche.", fontSize = 17.sp, color = Muted)
         Spacer(Modifier.height(24.dp))
-        OutlinedTextField(value = code, onValueChange = { code = it }, label = { Text("Code d'invitation") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = { vm.joinHousehold(code) }, modifier = Modifier.fillMaxWidth()) { Text("Rejoindre") }
+        SoftInput(value = name, onValueChange = { name = it }, label = "Nom du foyer")
+        Spacer(Modifier.height(10.dp))
+        PrimaryButton(text = "Creer mon foyer", icon = Icons.Filled.Home) { vm.createHousehold(name) }
+        Spacer(Modifier.height(24.dp))
+        SoftInput(value = code, onValueChange = { code = it }, label = "Code d'invitation")
+        Spacer(Modifier.height(10.dp))
+        SecondaryButton(text = "Rejoindre", icon = Icons.Filled.Group) { vm.joinHousehold(code) }
         vm.state.error?.let { ErrorText(it) }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeShell(vm: MonFoyerViewModel) {
     val context = LocalContext.current as ComponentActivity
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(vm.state.household?.name ?: "Mon Foyer") },
-                actions = {
-                    IconButton(onClick = { vm.signOut(context) }) {
-                        Icon(Icons.Filled.Logout, contentDescription = "Deconnexion")
-                    }
-                }
+    Box(Modifier.fillMaxSize().background(Cream).systemBarsPadding()) {
+        Column(Modifier.fillMaxSize()) {
+            AppHeader(
+                activeTab = vm.state.selectedTab,
+                householdName = vm.state.household?.name ?: "Mon Foyer",
+                onHome = { vm.select(Tab.Home) },
+                onSignOut = { vm.signOut(context) }
             )
-        },
-        bottomBar = {
-            NavigationBar {
-                Tab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = vm.state.selectedTab == tab,
-                        onClick = { vm.select(tab) },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) }
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Column(Modifier.padding(padding).padding(horizontal = 16.dp)) {
-            vm.state.error?.let { ErrorText(it) }
+            vm.state.error?.let { ErrorText(it, Modifier.padding(horizontal = 24.dp)) }
             when (vm.state.selectedTab) {
-                Tab.Home -> Dashboard(vm.state)
+                Tab.Home -> Dashboard(vm)
                 Tab.Shopping -> ShoppingScreen(vm)
                 Tab.Budget -> BudgetScreen(vm)
                 Tab.Calendar -> AgendaScreen(vm)
@@ -415,39 +441,113 @@ fun HomeShell(vm: MonFoyerViewModel) {
                 Tab.Members -> MembersScreen(vm)
             }
         }
+        FloatingHomeButton(visible = vm.state.selectedTab != Tab.Home, onClick = { vm.select(Tab.Home) })
     }
 }
 
 @Composable
-fun Dashboard(state: AppUiState) {
-    val unpaid = state.bills.filterNot { it.paid }.sumOf { it.amount }
-    val remaining = state.monthlyBudget - unpaid
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 12.dp)) {
-        item { MetricCard("Argent restant estime", "${"%.2f".format(remaining)} EUR", if (remaining >= 0) "Apres factures non payees" else "Budget depasse") }
-        item { MetricCard("Courses a faire", state.shopping.count { !it.done }.toString(), "Articles restants") }
-        item { MetricCard("Agenda", state.events.take(3).joinToString("\n") { "${it.date} - ${it.title}" }.ifBlank { "Rien de prevu" }, "Prochains evenements") }
-        item { MetricCard("Notes", state.notes.size.toString(), "Notes partagees") }
+fun AppHeader(activeTab: Tab, householdName: String, onHome: () -> Unit, onSignOut: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            BrandLogo(Modifier.weight(1f))
+            FlowerMark()
+            Spacer(Modifier.width(14.dp))
+            RoundIconButton(icon = Icons.Filled.Logout, tint = Muted, onClick = onSignOut)
+        }
+        Spacer(Modifier.height(16.dp))
+        if (activeTab != Tab.Home) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = DeepGreen, shape = RoundedCornerShape(50), modifier = Modifier.clickable { onHome() }) {
+                    Row(Modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(activeTab.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(activeTab.label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+                RoundIconButton(icon = Icons.Filled.Group, tint = Ink, onClick = {})
+            }
+        } else {
+            Text(householdName, color = Muted, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+fun Dashboard(vm: MonFoyerViewModel) {
+    val state = vm.state
+    val modules = listOf(
+        ModuleTile(Tab.Shopping, "Courses", "Liste partagee", state.shopping.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Mint, Color(0xFF86D6C3)), Icons.Filled.ShoppingCart),
+        ModuleTile(Tab.Calendar, "Calendrier", "Agenda du foyer", state.events.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFF2B8), Lemon), Icons.Filled.CalendarMonth),
+        ModuleTile(Tab.Notes, "Notes", "Pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Coral, Color(0xFFFFB6BF)), Icons.Filled.EditNote),
+        ModuleTile(Tab.Budget, "Budget", "Factures et reste", null, listOf(Color(0xFFFFD6C8), Color(0xFFA7E0D2)), Icons.Filled.Payments),
+        ModuleTile(Tab.Members, "Foyer", "Membres et code", state.members.size.toString(), listOf(Sky, Color(0xFFD7F0F5)), Icons.Filled.Group)
+    )
+    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+        Text("Mes applications", fontSize = 34.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, color = Ink)
+        Spacer(Modifier.height(18.dp))
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = Modifier.fillMaxSize().navigationBarsPadding()
+        ) {
+            gridItems(modules) { tile ->
+                ModuleCard(tile = tile, onClick = { vm.select(tile.tab) })
+            }
+        }
+    }
+}
+
+@Composable
+fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .height(164.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(tile.colors))
+            .clickable(onClick = onClick)
+            .padding(18.dp)
+    ) {
+        Text(
+            tile.title,
+            fontSize = 27.sp,
+            lineHeight = 29.sp,
+            fontWeight = FontWeight.Black,
+            color = Color.Black,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Box(
+            Modifier.align(Alignment.BottomEnd).offset(x = 10.dp, y = 10.dp).size(82.dp)
+                .clip(CircleShape).background(Color.White.copy(alpha = 0.42f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(tile.icon, contentDescription = null, tint = DeepGreen, modifier = Modifier.size(46.dp))
+        }
+        tile.count?.let {
+            Surface(color = Color.White.copy(alpha = 0.45f), shape = CircleShape, modifier = Modifier.align(Alignment.BottomStart)) {
+                Text(it, modifier = Modifier.padding(horizontal = 17.dp, vertical = 13.dp), fontSize = 18.sp, fontWeight = FontWeight.Black, color = Ink)
+            }
+        }
     }
 }
 
 @Composable
 fun ShoppingScreen(vm: MonFoyerViewModel) {
     var name by remember { mutableStateOf("") }
-    ModuleList(
-        title = "Courses",
-        input = {
-            QuickAdd(value = name, onChange = { name = it }, label = "Ajouter un article") {
+    ModulePanel(title = "Liste de course") {
+        item {
+            QuickAdd(value = name, onChange = { name = it }, label = "Ajouter un article...") {
                 vm.addShoppingItem(name)
                 name = ""
             }
         }
-    ) {
         items(vm.state.shopping) { item ->
-            RowCard {
-                IconButton(onClick = { vm.toggleShopping(item) }) {
-                    Icon(if (item.done) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Etat")
+            ListRow {
+                IconButton(onClick = { vm.toggleShopping(item) }, modifier = Modifier.size(48.dp)) {
+                    Icon(if (item.done) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Etat", tint = if (item.done) DeepGreen else Color(0xFFDADADA), modifier = Modifier.size(34.dp))
                 }
-                Text(item.name, modifier = Modifier.weight(1f))
+                Text(item.name, modifier = Modifier.weight(1f), fontSize = 24.sp, color = Ink)
                 DeleteButton { vm.delete("shoppingItems", item.id) }
             }
         }
@@ -459,35 +559,34 @@ fun BudgetScreen(vm: MonFoyerViewModel) {
     var budget by remember(vm.state.monthlyBudget) { mutableStateOf(if (vm.state.monthlyBudget == 0.0) "" else vm.state.monthlyBudget.toString()) }
     var label by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    ModuleList(
-        title = "Budget et factures",
-        input = {
-            OutlinedTextField(
-                value = budget,
-                onValueChange = { budget = it },
-                label = { Text("Budget mensuel") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Button(onClick = { vm.setMonthlyBudget(budget) }) { Text("Mettre a jour") }
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text("Facture") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Montant") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-            Button(onClick = {
+    val unpaid = vm.state.bills.filterNot { it.paid }.sumOf { it.amount }
+    val remaining = vm.state.monthlyBudget - unpaid
+    ModulePanel(title = "Budget") {
+        item {
+            StatBubble("Reste estime", "${"%.2f".format(remaining)} EUR")
+            Spacer(Modifier.height(14.dp))
+            SoftInput(value = budget, onValueChange = { budget = it }, label = "Budget mensuel", keyboardType = KeyboardType.Decimal)
+            Spacer(Modifier.height(10.dp))
+            SecondaryButton(text = "Mettre a jour", icon = Icons.Filled.Payments) { vm.setMonthlyBudget(budget) }
+            Spacer(Modifier.height(18.dp))
+            SoftInput(value = label, onValueChange = { label = it }, label = "Nouvelle facture")
+            Spacer(Modifier.height(10.dp))
+            SoftInput(value = amount, onValueChange = { amount = it }, label = "Montant", keyboardType = KeyboardType.Decimal)
+            Spacer(Modifier.height(10.dp))
+            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
                 vm.addBill(label, amount)
                 label = ""
                 amount = ""
-            }) { Icon(Icons.Filled.Add, null); Spacer(Modifier.width(8.dp)); Text("Ajouter") }
+            }
         }
-    ) {
         items(vm.state.bills) { bill ->
-            RowCard {
-                IconButton(onClick = { vm.toggleBill(bill) }) {
-                    Icon(if (bill.paid) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Payee")
+            ListRow {
+                IconButton(onClick = { vm.toggleBill(bill) }, modifier = Modifier.size(48.dp)) {
+                    Icon(if (bill.paid) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Payee", tint = if (bill.paid) DeepGreen else Color(0xFFDADADA), modifier = Modifier.size(34.dp))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(bill.label, fontWeight = FontWeight.SemiBold)
-                    Text("${"%.2f".format(bill.amount)} EUR")
+                    Text(bill.label, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text("${"%.2f".format(bill.amount)} EUR", fontSize = 16.sp, color = Muted)
                 }
                 DeleteButton { vm.delete("bills", bill.id) }
             }
@@ -500,25 +599,28 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
     var title by remember { mutableStateOf("") }
     var owner by remember { mutableStateOf("") }
     var date by remember { mutableStateOf("") }
-    ModuleList(
-        title = "Agenda",
-        input = {
-            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Evenement") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = owner, onValueChange = { owner = it }, label = { Text("Pour qui ?") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Date") }, modifier = Modifier.fillMaxWidth())
-            Button(onClick = {
+    ModulePanel(title = "Calendrier") {
+        item {
+            MonthPreview()
+            Spacer(Modifier.height(18.dp))
+            SoftInput(value = title, onValueChange = { title = it }, label = "Nom de l'evenement")
+            Spacer(Modifier.height(10.dp))
+            SoftInput(value = owner, onValueChange = { owner = it }, label = "Pour qui ?")
+            Spacer(Modifier.height(10.dp))
+            SoftInput(value = date, onValueChange = { date = it }, label = "Date")
+            Spacer(Modifier.height(10.dp))
+            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
                 vm.addEvent(title, owner, date)
                 title = ""
                 owner = ""
                 date = ""
-            }) { Icon(Icons.Filled.Add, null); Spacer(Modifier.width(8.dp)); Text("Ajouter") }
+            }
         }
-    ) {
         items(vm.state.events) { event ->
-            RowCard {
+            ListRow {
                 Column(Modifier.weight(1f)) {
-                    Text(event.title, fontWeight = FontWeight.SemiBold)
-                    Text(listOf(event.date, event.owner).filter { it.isNotBlank() }.joinToString(" - "))
+                    Text(event.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(listOf(event.date, event.owner).filter { it.isNotBlank() }.joinToString(" - "), fontSize = 16.sp, color = Muted)
                 }
                 DeleteButton { vm.delete("events", event.id) }
             }
@@ -530,23 +632,23 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
 fun NotesScreen(vm: MonFoyerViewModel) {
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
-    ModuleList(
-        title = "Notes",
-        input = {
-            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Titre") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = body, onValueChange = { body = it }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-            Button(onClick = {
+    ModulePanel(title = "Notes") {
+        item {
+            SoftInput(value = title, onValueChange = { title = it }, label = "Titre")
+            Spacer(Modifier.height(10.dp))
+            SoftInput(value = body, onValueChange = { body = it }, label = "Note", minLines = 3)
+            Spacer(Modifier.height(10.dp))
+            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
                 vm.addNote(title, body)
                 title = ""
                 body = ""
-            }) { Icon(Icons.Filled.Add, null); Spacer(Modifier.width(8.dp)); Text("Ajouter") }
+            }
         }
-    ) {
         items(vm.state.notes) { note ->
-            RowCard {
+            ListRow {
                 Column(Modifier.weight(1f)) {
-                    Text(note.title, fontWeight = FontWeight.SemiBold)
-                    Text(note.body)
+                    Text(note.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(note.body, fontSize = 16.sp, color = Muted)
                 }
                 DeleteButton { vm.delete("notes", note.id) }
             }
@@ -556,17 +658,21 @@ fun NotesScreen(vm: MonFoyerViewModel) {
 
 @Composable
 fun MembersScreen(vm: MonFoyerViewModel) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 12.dp)) {
+    ModulePanel(title = "Mon foyer") {
         item {
-            MetricCard("Code foyer", vm.state.household?.inviteCode.orEmpty(), "A partager avec les membres du foyer")
+            StatBubble("Code foyer", vm.state.household?.inviteCode.orEmpty())
         }
         items(vm.state.members) { member ->
-            RowCard {
-                Icon(Icons.Filled.Group, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
+            ListRow {
+                Surface(color = SoftGrey, shape = CircleShape, modifier = Modifier.size(50.dp), content = {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Group, contentDescription = null, tint = DeepGreen)
+                    }
+                })
+                Spacer(Modifier.width(14.dp))
                 Column {
-                    Text(member.name.ifBlank { "Membre" }, fontWeight = FontWeight.SemiBold)
-                    Text(member.email)
+                    Text(member.name.ifBlank { "Membre" }, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(member.email, fontSize = 14.sp, color = Muted)
                 }
             }
         }
@@ -574,58 +680,204 @@ fun MembersScreen(vm: MonFoyerViewModel) {
 }
 
 @Composable
-fun ModuleList(title: String, input: @Composable () -> Unit, content: LazyListScope.() -> Unit) {
-    Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                input()
+fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 28.dp).navigationBarsPadding()
+        ) {
+            item {
+                Text(title, fontSize = 34.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, color = Ink)
+                Spacer(Modifier.height(18.dp))
             }
+            content()
+            item { Spacer(Modifier.height(92.dp)) }
         }
-        content()
     }
 }
 
 @Composable
 fun QuickAdd(value: String, onChange: (String) -> Unit, label: String, onAdd: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(value = value, onValueChange = onChange, label = { Text(label) }, modifier = Modifier.weight(1f))
-        IconButton(onClick = onAdd) { Icon(Icons.Filled.Add, contentDescription = "Ajouter") }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        SoftInput(value = value, onValueChange = onChange, label = label, modifier = Modifier.weight(1f))
+        Surface(color = DeepGreen, shape = RoundedCornerShape(16.dp), modifier = Modifier.size(64.dp).clickable(onClick = onAdd)) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Add, contentDescription = "Ajouter", tint = Color.White, modifier = Modifier.size(38.dp))
+            }
+        }
+    }
+    Spacer(Modifier.height(14.dp))
+}
+
+@Composable
+fun SoftInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    keyboardType: KeyboardType = KeyboardType.Text,
+    minLines: Int = 1
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = { Text(label, color = Muted, fontSize = 18.sp) },
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        minLines = minLines,
+        shape = RoundedCornerShape(18.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = DeepGreen,
+            unfocusedBorderColor = Color(0xFFE3E3E0),
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White
+        ),
+        modifier = modifier
+    )
+}
+
+@Composable
+fun ListRow(content: @Composable RowScope.() -> Unit) {
+    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, content = content)
     }
 }
 
 @Composable
-fun MetricCard(title: String, value: String, helper: String) {
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(helper, style = MaterialTheme.typography.bodySmall)
+fun StatBubble(label: String, value: String) {
+    Surface(color = SoftGrey, shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp)) {
+            Text(label, color = Muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(value, color = DeepGreen, fontSize = 28.sp, fontWeight = FontWeight.Black)
         }
     }
 }
 
 @Composable
-fun RowCard(content: @Composable RowScope.() -> Unit) {
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, content = content)
+fun MonthPreview() {
+    val days = (1..30).toList()
+    Column {
+        Text("Avril 2026", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Ink)
+        Spacer(Modifier.height(12.dp))
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            userScrollEnabled = false,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.height(300.dp)
+        ) {
+            gridItems(days) { day ->
+                Box(
+                    Modifier.height(58.dp).clip(RoundedCornerShape(12.dp))
+                        .background(if (day == 29) DeepGreen else SoftGrey)
+                        .padding(8.dp)
+                ) {
+                    Text(day.toString(), color = if (day == 29) Color.White else Ink, fontSize = 17.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PrimaryButton(text: String, icon: ImageVector, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = DeepGreen),
+        modifier = Modifier.fillMaxWidth().height(62.dp)
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun SecondaryButton(text: String, icon: ImageVector, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = SoftGrey, contentColor = DeepGreen),
+        modifier = Modifier.fillMaxWidth().height(58.dp)
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun BoxScope.FloatingHomeButton(visible: Boolean, onClick: () -> Unit) {
+    if (!visible) return
+    Surface(
+        color = Color.White,
+        shape = CircleShape,
+        shadowElevation = 10.dp,
+        modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(28.dp).size(76.dp).clickable(onClick = onClick)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.Home, contentDescription = "Accueil", tint = DeepGreen, modifier = Modifier.size(38.dp))
+        }
+    }
+}
+
+@Composable
+fun RoundIconButton(icon: ImageVector, tint: Color, onClick: () -> Unit) {
+    Surface(color = Color.White, shape = CircleShape, shadowElevation = 2.dp, modifier = Modifier.size(46.dp).clickable(onClick = onClick)) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(27.dp))
+        }
+    }
+}
+
+@Composable
+fun BrandLogo(modifier: Modifier = Modifier) {
+    Text(
+        "Mon\nFoyer",
+        modifier = modifier,
+        color = DeepGreen,
+        fontSize = 33.sp,
+        lineHeight = 28.sp,
+        fontWeight = FontWeight.Black
+    )
+}
+
+@Composable
+fun FlowerMark() {
+    Canvas(Modifier.size(38.dp)) {
+        val colors = listOf(DeepGreen, Color(0xFFE86675), Color(0xFFE8A64F), Color(0xFF7BC6D4), Color(0xFF9AD7C2), Color(0xFFF2C55A))
+        colors.forEachIndexed { index, color ->
+            val angle = (index * 60f) * Math.PI.toFloat() / 180f
+            val center = Offset(
+                x = size.width / 2 + kotlin.math.cos(angle.toDouble()).toFloat() * 12.dp.toPx(),
+                y = size.height / 2 + kotlin.math.sin(angle.toDouble()).toFloat() * 12.dp.toPx()
+            )
+            drawCircle(color = color, radius = 4.5.dp.toPx(), center = center)
+        }
+        drawCircle(color = Color.White, radius = 4.dp.toPx(), center = Offset(size.width / 2, size.height / 2))
     }
 }
 
 @Composable
 fun DeleteButton(onClick: () -> Unit) {
-    IconButton(onClick = onClick) { Icon(Icons.Filled.Delete, contentDescription = "Supprimer") }
+    IconButton(onClick = onClick) { Icon(Icons.Filled.Delete, contentDescription = "Supprimer", tint = Muted) }
 }
 
 @Composable
-fun ErrorText(message: String) {
+fun ErrorText(message: String, modifier: Modifier = Modifier) {
     Spacer(Modifier.height(12.dp))
-    Text(message, color = MaterialTheme.colorScheme.error)
+    Text(message, color = MaterialTheme.colorScheme.error, modifier = modifier)
 }
 
 @Composable
 fun CenterMessage(message: String) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(message)
+        BrandLogo()
+        Spacer(Modifier.height(18.dp))
+        Text(message, color = DeepGreen, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
