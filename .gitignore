@@ -1,5 +1,7 @@
 .gradle/
+.gradle-user/
 .idea/
+.kotlin/
 build/
 local.properties
 captures/
@@ -8,4 +10,3 @@ captures/
 *.keystore
 google-services.json
 app/google-services.json
-
