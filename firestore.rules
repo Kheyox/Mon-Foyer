@@ -10,6 +10,11 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid));
     }
 
+    function householdAdmin(householdId) {
+      return householdMember(householdId)
+        && get(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /users/{userId} {
       allow read, write: if signedIn() && request.auth.uid == userId;
     }
@@ -21,7 +26,8 @@ service cloud.firestore {
       match /members/{memberId} {
         allow read: if householdMember(householdId);
         allow create: if signedIn() && memberId == request.auth.uid;
-        allow update, delete: if signedIn() && memberId == request.auth.uid;
+        allow update: if signedIn() && (memberId == request.auth.uid || householdAdmin(householdId));
+        allow delete: if signedIn() && (memberId == request.auth.uid || householdAdmin(householdId));
       }
 
       match /{collection}/{documentId} {

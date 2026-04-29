@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Group
@@ -89,7 +90,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -117,9 +120,16 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.absoluteValue
 
-data class Household(val id: String = "", val name: String = "Mon foyer", val inviteCode: String = "")
-data class Member(val id: String = "", val name: String = "", val email: String = "")
-data class ShoppingItem(val id: String = "", val name: String = "", val done: Boolean = false)
+data class Household(val id: String = "", val name: String = "Mon foyer", val inviteCode: String = "", val ownerId: String = "")
+data class Member(val id: String = "", val name: String = "", val email: String = "", val role: String = "member", val color: Long = 0xFF174C43)
+data class ShoppingItem(
+    val id: String = "",
+    val name: String = "",
+    val done: Boolean = false,
+    val quantity: Int = 1,
+    val category: String = "Epicerie",
+    val favorite: Boolean = false
+)
 data class Bill(val id: String = "", val label: String = "", val amount: Double = 0.0, val paid: Boolean = false)
 data class Event(
     val id: String = "",
@@ -142,6 +152,7 @@ data class Birthday(val id: String = "", val name: String = "", val date: String
 
 data class AppUiState(
     val signedIn: Boolean = false,
+    val currentUserId: String = "",
     val userName: String = "",
     val household: Household? = null,
     val members: List<Member> = emptyList(),
@@ -192,6 +203,7 @@ class MonFoyerViewModel : ViewModel() {
             } else {
                 state = state.copy(
                     signedIn = true,
+                    currentUserId = user.uid,
                     userName = user.displayName ?: "Mon compte",
                     loading = true,
                     error = null
@@ -241,6 +253,8 @@ class MonFoyerViewModel : ViewModel() {
         val member = mapOf(
             "name" to (user.displayName ?: "Membre"),
             "email" to (user.email ?: ""),
+            "role" to "admin",
+            "color" to memberColorLong(user.uid),
             "createdAt" to FieldValue.serverTimestamp()
         )
         val batch = db.batch()
@@ -265,6 +279,8 @@ class MonFoyerViewModel : ViewModel() {
                             mapOf(
                                 "name" to (user.displayName ?: "Membre"),
                                 "email" to (user.email ?: ""),
+                                "role" to "member",
+                                "color" to memberColorLong(user.uid),
                                 "createdAt" to FieldValue.serverTimestamp()
                             )
                         ).addOnSuccessListener {
@@ -282,7 +298,23 @@ class MonFoyerViewModel : ViewModel() {
         db.collection("households").document(household.id).update("monthlyBudget", amount)
     }
 
-    fun addShoppingItem(name: String) = add("shoppingItems", mapOf("name" to name, "done" to false))
+    fun addShoppingItem(name: String) {
+        val clean = name.trim()
+        if (clean.isBlank()) return
+        val match = Regex("""^(\d+)\s+(.+)$""").find(clean)
+        val quantity = match?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
+        val itemName = match?.groupValues?.getOrNull(2)?.trim().orEmpty().ifBlank { clean }
+        add(
+            "shoppingItems",
+            mapOf(
+                "name" to itemName,
+                "done" to false,
+                "quantity" to quantity,
+                "category" to shoppingCategory(itemName),
+                "favorite" to false
+            )
+        )
+    }
     fun addBill(label: String, amount: String) = add("bills", mapOf("label" to label, "amount" to (amount.toDoubleOrNull() ?: 0.0), "paid" to false))
     fun addEvent(
         title: String,
@@ -329,10 +361,28 @@ class MonFoyerViewModel : ViewModel() {
                 "emoji" to emoji,
                 "assigneeId" to (member?.id ?: ""),
                 "assigneeName" to (member?.name ?: "A assigner"),
-                "color" to memberColorLong(member?.id ?: title),
+                "color" to (member?.color ?: memberColorLong(title)),
                 "done" to false
             )
         )
+    }
+    fun updateTask(taskId: String, title: String, description: String, dueDate: String, emoji: String, member: Member?) {
+        if (title.isBlank()) return
+        val household = state.household ?: return
+        db.collection("households").document(household.id).collection("tasks").document(taskId)
+            .update(
+                mapOf(
+                    "title" to title.trim(),
+                    "description" to description,
+                    "dueDate" to dueDate,
+                    "emoji" to emoji,
+                    "assigneeId" to (member?.id ?: ""),
+                    "assigneeName" to (member?.name ?: "A assigner"),
+                    "color" to (member?.color ?: memberColorLong(title)),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
     }
     fun addBirthday(name: String, date: LocalDate, birthYear: String) {
         if (name.isBlank()) return
@@ -347,6 +397,7 @@ class MonFoyerViewModel : ViewModel() {
     }
 
     fun toggleShopping(item: ShoppingItem) = update("shoppingItems", item.id, "done", !item.done)
+    fun toggleShoppingFavorite(item: ShoppingItem) = update("shoppingItems", item.id, "favorite", !item.favorite)
     fun toggleBill(bill: Bill) = update("bills", bill.id, "paid", !bill.paid)
     fun toggleTask(task: HouseholdTask) = update("tasks", task.id, "done", !task.done)
     fun delete(collection: String, id: String) {
@@ -363,6 +414,28 @@ class MonFoyerViewModel : ViewModel() {
             batch.delete(db.collection("households").document(household.id).collection("shoppingItems").document(item.id))
         }
         batch.commit().addOnFailureListener { setError(it.message ?: "Suppression impossible.") }
+    }
+
+    fun updateMember(memberId: String, name: String, color: Long) {
+        val household = state.household ?: return
+        val cleanName = name.trim().ifBlank { "Membre" }
+        db.collection("households").document(household.id).collection("members").document(memberId)
+            .update(mapOf("name" to cleanName, "color" to color, "updatedAt" to FieldValue.serverTimestamp()))
+            .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
+    }
+
+    fun leaveHousehold() {
+        val household = state.household ?: return
+        val user = auth.currentUser ?: return
+        val batch = db.batch()
+        batch.delete(db.collection("households").document(household.id).collection("members").document(user.uid))
+        batch.delete(db.collection("users").document(user.uid))
+        batch.commit()
+            .addOnSuccessListener {
+                clearListeners()
+                state = state.copy(household = null, members = emptyList(), selectedTab = Tab.Home)
+            }
+            .addOnFailureListener { setError(it.message ?: "Impossible de quitter le foyer.") }
     }
 
     private fun add(collection: String, values: Map<String, Any>) {
@@ -403,7 +476,8 @@ class MonFoyerViewModel : ViewModel() {
                     household = Household(
                         id = doc.id,
                         name = doc.getString("name") ?: "Mon foyer",
-                        inviteCode = doc.getString("inviteCode") ?: ""
+                        inviteCode = doc.getString("inviteCode") ?: "",
+                        ownerId = doc.getString("ownerId") ?: ""
                     ),
                     monthlyBudget = doc.getDouble("monthlyBudget") ?: 0.0,
                     loading = false
@@ -411,10 +485,28 @@ class MonFoyerViewModel : ViewModel() {
             }
         }
         listeners += householdRef.collection("members").addSnapshotListener { snap, _ ->
-            state = state.copy(members = snap?.documents?.map { Member(it.id, it.getString("name") ?: "", it.getString("email") ?: "") }.orEmpty())
+            val ownerId = state.household?.ownerId.orEmpty()
+            state = state.copy(members = snap?.documents?.map {
+                Member(
+                    id = it.id,
+                    name = it.getString("name") ?: "",
+                    email = it.getString("email") ?: "",
+                    role = it.getString("role") ?: if (it.id == ownerId) "admin" else "member",
+                    color = it.getLong("color") ?: memberColorLong(it.id)
+                )
+            }.orEmpty())
         }
         listeners += householdRef.collection("shoppingItems").addSnapshotListener { snap, _ ->
-            state = state.copy(shopping = snap?.documents?.map { ShoppingItem(it.id, it.getString("name") ?: "", it.getBoolean("done") ?: false) }.orEmpty())
+            state = state.copy(shopping = snap?.documents?.map {
+                ShoppingItem(
+                    id = it.id,
+                    name = it.getString("name") ?: "",
+                    done = it.getBoolean("done") ?: false,
+                    quantity = (it.getLong("quantity") ?: 1).toInt(),
+                    category = it.getString("category") ?: shoppingCategory(it.getString("name") ?: ""),
+                    favorite = it.getBoolean("favorite") ?: false
+                )
+            }.orEmpty())
         }
         listeners += householdRef.collection("bills").addSnapshotListener { snap, _ ->
             state = state.copy(bills = snap?.documents?.map { Bill(it.id, it.getString("label") ?: "", it.getDouble("amount") ?: 0.0, it.getBoolean("paid") ?: false) }.orEmpty())
@@ -742,29 +834,63 @@ fun HomeMenu(expanded: Boolean, onDismiss: () -> Unit, onSelect: (Tab) -> Unit, 
 @Composable
 fun ShoppingScreen(vm: MonFoyerViewModel) {
     var name by remember { mutableStateOf("") }
+    var confirmClear by remember { mutableStateOf(false) }
     val checkedCount = vm.state.shopping.count { it.done }
+    val favoriteItems = vm.state.shopping.filter { it.favorite }.distinctBy { it.name }.take(4)
+    val sortedItems = vm.state.shopping.sortedWith(compareBy<ShoppingItem> { it.done }.thenBy { it.category }.thenBy { it.name })
     ModulePanel(title = "Liste de course") {
         item {
             QuickAdd(value = name, onChange = { name = it }, label = "Ajouter un article...") {
                 vm.addShoppingItem(name)
                 name = ""
             }
+            if (favoriteItems.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    favoriteItems.forEach { item ->
+                        TaskFilterChip(item.name, false) {
+                            vm.addShoppingItem("${item.quantity} ${item.name}")
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
             if (checkedCount > 0) {
                 SecondaryButton(text = "Supprimer elements coches ($checkedCount)", icon = Icons.Filled.Delete) {
-                    vm.deleteCheckedShoppingItems()
+                    confirmClear = true
                 }
                 Spacer(Modifier.height(10.dp))
             }
         }
-        items(vm.state.shopping) { item ->
+        items(sortedItems) { item ->
             ListRow {
                 IconButton(onClick = { vm.toggleShopping(item) }, modifier = Modifier.size(48.dp)) {
                     Icon(if (item.done) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Etat", tint = if (item.done) DeepGreen else Color(0xFFDADADA), modifier = Modifier.size(34.dp))
                 }
-                Text(item.name, modifier = Modifier.weight(1f), fontSize = 24.sp, color = Ink)
+                Column(Modifier.weight(1f)) {
+                    Text(item.name, fontSize = 24.sp, color = Ink, fontWeight = FontWeight.Bold)
+                    Text("${item.quantity} x - ${item.category}", fontSize = 15.sp, color = Muted)
+                }
+                Text(
+                    if (item.favorite) "★" else "☆",
+                    color = if (item.favorite) Color(0xFFE8A64F) else Muted,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.clickable { vm.toggleShoppingFavorite(item) }.padding(horizontal = 8.dp)
+                )
                 DeleteButton { vm.delete("shoppingItems", item.id) }
             }
         }
+    }
+    if (confirmClear) {
+        ConfirmDeleteDialog(
+            title = "Vider les elements coches ?",
+            message = "$checkedCount article(s) coche(s) vont etre supprimes de la liste.",
+            onConfirm = {
+                vm.deleteCheckedShoppingItems()
+                confirmClear = false
+            },
+            onDismiss = { confirmClear = false }
+        )
     }
 }
 
@@ -885,6 +1011,20 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
 @Composable
 fun TasksScreen(vm: MonFoyerViewModel) {
     var showAddSheet by remember { mutableStateOf(false) }
+    var editingTask by remember { mutableStateOf<HouseholdTask?>(null) }
+    var taskToDelete by remember { mutableStateOf<HouseholdTask?>(null) }
+    var statusFilter by remember { mutableStateOf("todo") }
+    var memberFilter by remember { mutableStateOf("") }
+    val filteredTasks = vm.state.tasks
+        .filter { task ->
+            when (statusFilter) {
+                "todo" -> !task.done
+                "done" -> task.done
+                else -> true
+            }
+        }
+        .filter { task -> memberFilter.isBlank() || task.assigneeId == memberFilter }
+        .sortedWith(compareBy<HouseholdTask> { it.done }.thenBy { it.dueDate.ifBlank { "9999-12-31" } }.thenBy { it.title })
     ModulePanel(title = "Taches") {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -897,9 +1037,32 @@ fun TasksScreen(vm: MonFoyerViewModel) {
                     }
                 }
             }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                TaskFilterChip("A faire", statusFilter == "todo") { statusFilter = "todo" }
+                TaskFilterChip("Terminees", statusFilter == "done") { statusFilter = "done" }
+                TaskFilterChip("Toutes", statusFilter == "all") { statusFilter = "all" }
+            }
+            if (vm.state.members.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    TaskFilterChip("Tous", memberFilter.isBlank()) { memberFilter = "" }
+                    vm.state.members.take(3).forEach { member ->
+                        TaskFilterChip(member.name.ifBlank { "Membre" }, memberFilter == member.id) { memberFilter = member.id }
+                    }
+                }
+            }
         }
-        items(vm.state.tasks) { task ->
-            TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onDelete = { vm.delete("tasks", task.id) })
+        if (filteredTasks.isEmpty()) {
+            item { Text("Aucune tache ici", color = Muted, fontSize = 18.sp) }
+        }
+        items(filteredTasks) { task ->
+            TaskCard(
+                task = task,
+                onToggle = { vm.toggleTask(task) },
+                onEdit = { editingTask = task },
+                onDelete = { taskToDelete = task }
+            )
         }
     }
     if (showAddSheet) {
@@ -910,6 +1073,28 @@ fun TasksScreen(vm: MonFoyerViewModel) {
                 vm.addTask(title, description, dueDate, emoji, member)
                 showAddSheet = false
             }
+        )
+    }
+    editingTask?.let { task ->
+        AddTaskSheet(
+            members = vm.state.members,
+            task = task,
+            onDismiss = { editingTask = null },
+            onAdd = { title, description, dueDate, emoji, member ->
+                vm.updateTask(task.id, title, description, dueDate, emoji, member)
+                editingTask = null
+            }
+        )
+    }
+    taskToDelete?.let { task ->
+        ConfirmDeleteDialog(
+            title = "Supprimer cette tache ?",
+            message = "La tache \"${task.title}\" sera supprimee pour tout le foyer.",
+            onConfirm = {
+                vm.delete("tasks", task.id)
+                taskToDelete = null
+            },
+            onDismiss = { taskToDelete = null }
         )
     }
 }
@@ -987,23 +1172,183 @@ fun NotesScreen(vm: MonFoyerViewModel) {
 
 @Composable
 fun MembersScreen(vm: MonFoyerViewModel) {
+    val state = vm.state
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    var editingMember by remember { mutableStateOf<Member?>(null) }
+    var confirmLeave by remember { mutableStateOf(false) }
+    val currentMember = state.members.firstOrNull { it.id == state.currentUserId }
+    val isAdmin = currentMember?.role == "admin"
+
     ModulePanel(title = "Mon foyer") {
         item {
-            StatBubble("Code foyer", vm.state.household?.inviteCode.orEmpty())
-        }
-        items(vm.state.members) { member ->
-            ListRow {
-                Surface(color = SoftGrey, shape = CircleShape, modifier = Modifier.size(50.dp), content = {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Group, contentDescription = null, tint = DeepGreen)
+            Surface(color = SoftGrey, shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("Code d'invitation", fontSize = 16.sp, color = Muted, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            state.household?.inviteCode.orEmpty(),
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Black,
+                            color = DeepGreen,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Surface(
+                            color = Color.White,
+                            shape = CircleShape,
+                            modifier = Modifier.size(54.dp).clickable {
+                                clipboard.setText(AnnotatedString(state.household?.inviteCode.orEmpty()))
+                                copied = true
+                            }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Filled.ContentCopy, contentDescription = "Copier", tint = DeepGreen)
+                            }
+                        }
                     }
-                })
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Text(member.name.ifBlank { "Membre" }, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
-                    Text(member.email, fontSize = 14.sp, color = Muted)
+                    if (copied) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("Code copie", fontSize = 14.sp, color = DeepGreen, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
+        }
+        items(state.members.sortedWith(compareByDescending<Member> { it.role == "admin" }.thenBy { it.name.ifBlank { it.email } })) { member ->
+            val canEdit = isAdmin || member.id == state.currentUserId
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(18.dp),
+                border = CardDefaults.outlinedCardBorder(),
+                modifier = Modifier.fillMaxWidth().clickable(enabled = canEdit) { editingMember = member }
+            ) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = Color(member.color), shape = CircleShape, modifier = Modifier.size(54.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                member.name.memberInitial(),
+                                color = Color.White,
+                                fontSize = 23.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(member.name.ifBlank { "Membre" }, fontSize = 21.sp, fontWeight = FontWeight.Black, color = Ink)
+                        Text(member.email.ifBlank { "Compte Google" }, fontSize = 14.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Surface(
+                        color = if (member.role == "admin") DeepGreen else SoftGrey,
+                        shape = RoundedCornerShape(50)
+                    ) {
+                        Text(
+                            if (member.role == "admin") "Admin" else "Membre",
+                            color = if (member.role == "admin") Color.White else Muted,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            Spacer(Modifier.height(8.dp))
+            SecondaryButton(text = "Quitter le foyer", icon = Icons.Filled.Logout) {
+                confirmLeave = true
+            }
+        }
+    }
+
+    editingMember?.let { member ->
+        MemberEditorSheet(
+            member = member,
+            onDismiss = { editingMember = null },
+            onSave = { name, color ->
+                vm.updateMember(member.id, name, color)
+                editingMember = null
+            }
+        )
+    }
+    if (confirmLeave) {
+        ConfirmDeleteDialog(
+            title = "Quitter le foyer",
+            message = "Ton compte ne verra plus ce foyer. Tu pourras le rejoindre plus tard avec le code d'invitation.",
+            confirmLabel = "Quitter",
+            onConfirm = {
+                confirmLeave = false
+                vm.leaveHousehold()
+            },
+            onDismiss = { confirmLeave = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MemberEditorSheet(member: Member, onDismiss: () -> Unit, onSave: (String, Long) -> Unit) {
+    var name by remember(member.id) { mutableStateOf(member.name.ifBlank { "Membre" }) }
+    var color by remember(member.id) { mutableStateOf(member.color) }
+    val colors = listOf(0xFF174C43, 0xFFE86675, 0xFFE8A64F, 0xFF5C8EE6, 0xFF8A6FDF, 0xFF2F9C95, 0xFF54B568, 0xFFB56AE8)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+        dragHandle = {
+            Box(Modifier.padding(top = 14.dp).width(70.dp).height(6.dp).clip(RoundedCornerShape(50)).background(Color(0xFF9B9B9B)))
+        }
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 24.dp).navigationBarsPadding()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Modifier le membre", fontSize = 31.sp, lineHeight = 33.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Fermer", tint = Ink, modifier = Modifier.size(34.dp))
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = Color(color), shape = CircleShape, modifier = Modifier.size(72.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(name.memberInitial(), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(member.email.ifBlank { "Compte Google" }, color = Muted, fontSize = 15.sp)
+                    Text(if (member.role == "admin") "Administrateur" else "Membre", color = DeepGreen, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+            Text("Nom affiche", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            SoftInput(value = name, onValueChange = { name = it }, label = "Nom du membre", leadingIcon = Icons.Filled.Person)
+            Spacer(Modifier.height(24.dp))
+            Text("Couleur", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                colors.forEach { value ->
+                    Surface(
+                        color = Color(value),
+                        shape = CircleShape,
+                        modifier = Modifier.size(if (value == color) 58.dp else 48.dp).clickable { color = value }
+                    ) {
+                        if (value == color) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(30.dp))
+            PrimaryButton(text = "Enregistrer", icon = Icons.Filled.CheckCircle) {
+                onSave(name, color)
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -1205,13 +1550,33 @@ fun BirthdayRow(birthday: Birthday, onDelete: () -> Unit) {
 }
 
 @Composable
-fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onDelete: () -> Unit) {
-    val color = Color(task.color)
+fun TaskFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
-        color = Color.White,
+        color = if (selected) DeepGreen else SoftGrey,
+        shape = RoundedCornerShape(50),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(
+            label,
+            color = if (selected) Color.White else Muted,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp)
+        )
+    }
+}
+
+@Composable
+fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val color = Color(task.color)
+    val overdue = task.isOverdue()
+    Surface(
+        color = if (overdue && !task.done) Color(0xFFFFF6F1) else Color.White,
         shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)),
-        modifier = Modifier.fillMaxWidth()
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, if (overdue && !task.done) Coral else Color(0xFFE3E3E0)),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)
     ) {
         Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
@@ -1251,20 +1616,33 @@ fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onDelete: () -> Unit) {
                     Icon(Icons.Filled.Delete, contentDescription = "Supprimer", tint = Muted)
                 }
             }
+            if (overdue && !task.done) {
+                Spacer(Modifier.height(8.dp))
+                Text("En retard", color = Coral, fontSize = 15.sp, fontWeight = FontWeight.Black)
+            }
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTaskSheet(members: List<Member>, onDismiss: () -> Unit, onAdd: (String, String, String, String, Member?) -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var emoji by remember { mutableStateOf("🙂") }
+fun AddTaskSheet(
+    members: List<Member>,
+    task: HouseholdTask? = null,
+    onDismiss: () -> Unit,
+    onAdd: (String, String, String, String, Member?) -> Unit
+) {
+    var title by remember(task?.id) { mutableStateOf(task?.title.orEmpty()) }
+    var description by remember(task?.id) { mutableStateOf(task?.description.orEmpty()) }
+    var emoji by remember(task?.id) { mutableStateOf(task?.emoji ?: "🙂") }
     var showEmojiPicker by remember { mutableStateOf(false) }
-    var selectedDate by remember { mutableStateOf(LocalDate.now().plusDays(1)) }
+    var selectedDate by remember(task?.id) {
+        mutableStateOf(task?.dueDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now().plusDays(1))
+    }
     var showDatePicker by remember { mutableStateOf(false) }
-    var selectedMemberId by remember(members) { mutableStateOf(members.firstOrNull()?.id.orEmpty()) }
+    var selectedMemberId by remember(task?.id, members) {
+        mutableStateOf(task?.assigneeId?.ifBlank { null } ?: members.firstOrNull()?.id.orEmpty())
+    }
     val selectedMember = members.firstOrNull { it.id == selectedMemberId }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1276,7 +1654,7 @@ fun AddTaskSheet(members: List<Member>, onDismiss: () -> Unit, onAdd: (String, S
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 22.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Nouvelle tache", fontSize = 31.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                Text(if (task == null) "Nouvelle tache" else "Modifier la tache", fontSize = 31.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
                 IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Fermer", tint = DeepGreen, modifier = Modifier.size(34.dp)) }
             }
             Spacer(Modifier.height(18.dp))
@@ -1321,7 +1699,7 @@ fun AddTaskSheet(members: List<Member>, onDismiss: () -> Unit, onAdd: (String, S
                 }
             }
             Spacer(Modifier.height(96.dp))
-            PrimaryButton(text = "Ajouter", icon = Icons.Filled.CheckCircle) {
+            PrimaryButton(text = if (task == null) "Ajouter" else "Enregistrer", icon = Icons.Filled.CheckCircle) {
                 onAdd(title, description, selectedDate.format(DateTimeFormatter.ISO_DATE), emoji, selectedMember)
             }
             Spacer(Modifier.height(24.dp))
@@ -1869,14 +2247,20 @@ fun ColorBankSheet(onDismiss: () -> Unit, onSelect: (Long) -> Unit) {
 }
 
 @Composable
-fun ConfirmDeleteDialog(title: String, message: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+fun ConfirmDeleteDialog(
+    title: String,
+    message: String,
+    confirmLabel: String = "Supprimer",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, fontWeight = FontWeight.Black, color = Ink) },
         text = { Text(message, color = Muted) },
         confirmButton = {
             Text(
-                "Supprimer",
+                confirmLabel,
                 color = Color(0xFFE86675),
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.clickable(onClick = onConfirm).padding(12.dp)
@@ -2093,6 +2477,21 @@ fun memberColorLong(seed: String): Long {
 
 fun memberColor(seed: String): Color = Color(memberColorLong(seed))
 
+fun String.memberInitial(): String {
+    val clean = trim()
+    return clean.firstOrNull()?.uppercaseChar()?.toString() ?: "M"
+}
+
+fun shoppingCategory(name: String): String {
+    val value = name.lowercase(Locale.FRANCE)
+    return when {
+        listOf("lait", "fromage", "yaourt", "beurre", "creme", "salade", "tomate", "pomme", "banane", "viande", "poisson", "oeuf").any { it in value } -> "Frais"
+        listOf("shampoing", "savon", "dentifrice", "gel douche", "coton", "rasoir", "lessive").any { it in value } -> "Hygiene"
+        listOf("sopalin", "papier", "sac", "eponge", "produit", "nettoyant", "ampoule").any { it in value } -> "Maison"
+        else -> "Epicerie"
+    }
+}
+
 fun defaultEventTypes(): List<EventType> = listOf(
     EventType(id = "meal", name = "Repas", icon = "🍴", color = 0xFFE86675),
     EventType(id = "medical", name = "Medical", icon = "🏥", color = 0xFF54B568),
@@ -2134,6 +2533,11 @@ fun String.taskDueLabel(): String {
 }
 
 fun LocalDate.taskDueLabel(): String = format(DateTimeFormatter.ISO_DATE).taskDueLabel()
+
+fun HouseholdTask.isOverdue(): Boolean {
+    val date = runCatching { LocalDate.parse(dueDate) }.getOrNull() ?: return false
+    return date.isBefore(LocalDate.now()) && !done
+}
 
 @Composable
 fun SoftInput(
