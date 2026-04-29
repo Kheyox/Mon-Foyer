@@ -591,15 +591,23 @@ class MonFoyerViewModel : ViewModel() {
     }
 }
 
-private val Cream = Color(0xFFF3F1EC)
-private val DeepGreen = Color(0xFF174C43)
-private val Mint = Color(0xFFAEEBD8)
-private val Lemon = Color(0xFFFFE58F)
-private val Coral = Color(0xFFFF9AA7)
-private val Sky = Color(0xFFA9DDEA)
-private val SoftGrey = Color(0xFFF0EFEC)
-private val Ink = Color(0xFF101010)
-private val Muted = Color(0xFF8C8B88)
+private val Cream = Color(0xFFF6F3EC)
+private val DeepGreen = Color(0xFF12483F)
+private val Leaf = Color(0xFF5DC7A6)
+private val Mint = Color(0xFFC9F0E3)
+private val Lemon = Color(0xFFFFE39A)
+private val Coral = Color(0xFFE97078)
+private val Sky = Color(0xFFB9E4EF)
+private val Lilac = Color(0xFFD7CEF7)
+private val Apricot = Color(0xFFFFC8A8)
+private val SoftGrey = Color(0xFFF1F0EC)
+private val CardBorder = Color(0xFFE5E1DA)
+private val Ink = Color(0xFF101312)
+private val Muted = Color(0xFF85837D)
+
+private val AppRadius = 22.dp
+private val PanelRadius = 34.dp
+private val FieldRadius = 18.dp
 
 data class ModuleTile(
     val tab: Tab,
@@ -614,8 +622,8 @@ data class ModuleTile(
 fun MonFoyerApp(vm: MonFoyerViewModel = viewModel()) {
     val colors = lightColorScheme(
         primary = DeepGreen,
-        secondary = Color(0xFFE8A64F),
-        tertiary = Color(0xFFE86675),
+        secondary = Leaf,
+        tertiary = Coral,
         background = Cream,
         surface = Color.White,
         surfaceVariant = SoftGrey,
@@ -713,7 +721,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
 @Composable
 fun AppHeader(activeTab: Tab, householdName: String, onHome: () -> Unit, onSelect: (Tab) -> Unit, onSignOut: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             BrandLogo(Modifier.weight(1f))
             Box {
@@ -734,19 +742,19 @@ fun AppHeader(activeTab: Tab, householdName: String, onHome: () -> Unit, onSelec
             Spacer(Modifier.width(14.dp))
             RoundIconButton(icon = Icons.Filled.Logout, tint = Muted, onClick = onSignOut)
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(18.dp))
         if (activeTab != Tab.Home) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = DeepGreen, shape = RoundedCornerShape(50), modifier = Modifier.clickable { onHome() }) {
-                    Row(Modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = DeepGreen, shape = RoundedCornerShape(50), shadowElevation = 3.dp, modifier = Modifier.clickable { onHome() }) {
+                    Row(Modifier.padding(horizontal = 18.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(activeTab.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(activeTab.label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                        Text(activeTab.label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
                     }
                 }
             }
         } else {
-            Text(householdName, color = Muted, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(householdName, color = Muted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -755,16 +763,17 @@ fun AppHeader(activeTab: Tab, householdName: String, onHome: () -> Unit, onSelec
 fun Dashboard(vm: MonFoyerViewModel) {
     val state = vm.state
     val modules = listOf(
-        ModuleTile(Tab.Shopping, "Courses", "Liste partagee", state.shopping.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Mint, Color(0xFF86D6C3)), Icons.Filled.ShoppingCart),
-        ModuleTile(Tab.Calendar, "Calendrier", "Agenda du foyer", state.events.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFF2B8), Lemon), Icons.Filled.CalendarMonth),
-        ModuleTile(Tab.Tasks, "Taches", "Qui fait quoi", state.tasks.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFA9E8DD), Color(0xFFD5F3A5)), Icons.Filled.CheckCircle),
-        ModuleTile(Tab.Notes, "Notes", "Pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Coral, Color(0xFFFFB6BF)), Icons.Filled.EditNote),
-        ModuleTile(Tab.Budget, "Budget", "Factures et reste", null, listOf(Color(0xFFFFD6C8), Color(0xFFA7E0D2)), Icons.Filled.Payments),
-        ModuleTile(Tab.Birthdays, "Anniversaires", "Dates importantes", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFADEBDD), Color(0xFFFFE8A6)), Icons.Filled.Group),
-        ModuleTile(Tab.Members, "Foyer", "Membres et code", state.members.size.toString(), listOf(Sky, Color(0xFFD7F0F5)), Icons.Filled.Group)
+        ModuleTile(Tab.Shopping, "Courses", "Liste partagee", state.shopping.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Mint, Leaf.copy(alpha = 0.62f)), Icons.Filled.ShoppingCart),
+        ModuleTile(Tab.Calendar, "Agenda", "Journees du foyer", state.events.size.takeIf { it > 0 }?.toString(), listOf(Lemon, Color(0xFFFFF0BE)), Icons.Filled.CalendarMonth),
+        ModuleTile(Tab.Tasks, "Taches", "A faire ensemble", state.tasks.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Sky, Mint), Icons.Filled.CheckCircle),
+        ModuleTile(Tab.Notes, "Notes", "Idees et pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFB9BF), Color(0xFFFFDDE0)), Icons.Filled.EditNote),
+        ModuleTile(Tab.Budget, "Budget", "Factures et reste", null, listOf(Apricot, Color(0xFFFFE1D0)), Icons.Filled.Payments),
+        ModuleTile(Tab.Birthdays, "Anniversaires", "Dates importantes", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Lilac, Color(0xFFF1ECFF)), Icons.Filled.Group),
+        ModuleTile(Tab.Members, "Foyer", "Membres et code", state.members.size.toString(), listOf(Color(0xFFD9F2ED), Sky), Icons.Filled.Group)
     )
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
-        Text("Mes applications", fontSize = 34.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, color = Ink)
+        Text("Mes espaces", fontSize = 36.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, color = Ink)
+        Text("Tout le quotidien du foyer, range au meme endroit.", fontSize = 15.sp, color = Muted, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(18.dp))
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
@@ -783,31 +792,47 @@ fun Dashboard(vm: MonFoyerViewModel) {
 fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .height(164.dp)
-            .clip(RoundedCornerShape(28.dp))
+            .height(174.dp)
+            .clip(RoundedCornerShape(30.dp))
             .background(androidx.compose.ui.graphics.Brush.linearGradient(tile.colors))
             .clickable(onClick = onClick)
             .padding(18.dp)
     ) {
-        Text(
-            tile.title,
-            fontSize = 27.sp,
-            lineHeight = 29.sp,
-            fontWeight = FontWeight.Black,
-            color = Color.Black,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+        Column(Modifier.align(Alignment.TopStart)) {
+            Text(
+                tile.title,
+                fontSize = 27.sp,
+                lineHeight = 29.sp,
+                fontWeight = FontWeight.Black,
+                color = Ink,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                tile.subtitle,
+                fontSize = 13.sp,
+                lineHeight = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = DeepGreen.copy(alpha = 0.72f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Box(
+            Modifier.align(Alignment.BottomEnd).offset(x = 24.dp, y = 22.dp).size(114.dp)
+                .clip(CircleShape).background(Color.White.copy(alpha = 0.34f))
         )
         Box(
-            Modifier.align(Alignment.BottomEnd).offset(x = 10.dp, y = 10.dp).size(82.dp)
-                .clip(CircleShape).background(Color.White.copy(alpha = 0.42f)),
+            Modifier.align(Alignment.BottomEnd).size(76.dp)
+                .clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.72f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(tile.icon, contentDescription = null, tint = DeepGreen, modifier = Modifier.size(46.dp))
+            Icon(tile.icon, contentDescription = null, tint = DeepGreen, modifier = Modifier.size(40.dp))
         }
         tile.count?.let {
-            Surface(color = Color.White.copy(alpha = 0.45f), shape = CircleShape, modifier = Modifier.align(Alignment.BottomStart)) {
-                Text(it, modifier = Modifier.padding(horizontal = 17.dp, vertical = 13.dp), fontSize = 18.sp, fontWeight = FontWeight.Black, color = Ink)
+            Surface(color = DeepGreen, shape = CircleShape, modifier = Modifier.align(Alignment.BottomStart)) {
+                Text(it, modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp), fontSize = 17.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
     }
@@ -1182,7 +1207,7 @@ fun MembersScreen(vm: MonFoyerViewModel) {
 
     ModulePanel(title = "Mon foyer") {
         item {
-            Surface(color = SoftGrey, shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+            Surface(color = SoftGrey, shape = RoundedCornerShape(AppRadius), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp)) {
                     Text("Code d'invitation", fontSize = 16.sp, color = Muted, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
@@ -1218,7 +1243,7 @@ fun MembersScreen(vm: MonFoyerViewModel) {
             val canEdit = isAdmin || member.id == state.currentUserId
             Surface(
                 color = Color.White,
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(AppRadius),
                 border = CardDefaults.outlinedCardBorder(),
                 modifier = Modifier.fillMaxWidth().clickable(enabled = canEdit) { editingMember = member }
             ) {
@@ -1357,7 +1382,7 @@ fun MemberEditorSheet(member: Member, onDismiss: () -> Unit, onSave: (String, Lo
 fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
     Surface(
         color = Color.White,
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        shape = RoundedCornerShape(topStart = PanelRadius, topEnd = PanelRadius),
         modifier = Modifier.fillMaxSize()
     ) {
         LazyColumn(
@@ -1365,7 +1390,11 @@ fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
             modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 28.dp).navigationBarsPadding()
         ) {
             item {
-                Text(title, fontSize = 34.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, color = Ink)
+                Box(
+                    Modifier.width(58.dp).height(5.dp).clip(RoundedCornerShape(50)).background(CardBorder)
+                )
+                Spacer(Modifier.height(18.dp))
+                Text(title, fontSize = 36.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, color = Ink)
                 Spacer(Modifier.height(18.dp))
             }
             content()
@@ -1514,7 +1543,7 @@ fun MemberChip(label: String, selected: Boolean, color: Color, modifier: Modifie
 
 @Composable
 fun DateChip(date: LocalDate) {
-    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(2.dp, DeepGreen), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), border = androidx.compose.foundation.BorderStroke(2.dp, DeepGreen), modifier = Modifier.fillMaxWidth()) {
         Text(
             date.format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.FRANCE)),
             color = DeepGreen,
@@ -1574,8 +1603,8 @@ fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onEdit: () -> Unit, onDe
     val overdue = task.isOverdue()
     Surface(
         color = if (overdue && !task.done) Color(0xFFFFF6F1) else Color.White,
-        shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, if (overdue && !task.done) Coral else Color(0xFFE3E3E0)),
+        shape = RoundedCornerShape(AppRadius),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, if (overdue && !task.done) Coral else CardBorder),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)
     ) {
         Column(Modifier.padding(18.dp)) {
@@ -1584,7 +1613,7 @@ fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onEdit: () -> Unit, onDe
                 Surface(
                     color = Color.White,
                     shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(2.dp, if (task.done) DeepGreen else Color(0xFFE0E0E0)),
+                    border = androidx.compose.foundation.BorderStroke(2.dp, if (task.done) DeepGreen else CardBorder),
                     modifier = Modifier.size(48.dp).clickable(onClick = onToggle)
                 ) {
                     if (task.done) {
@@ -1664,7 +1693,7 @@ fun AddTaskSheet(
                 Surface(
                     color = Color.White,
                     shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder),
                     modifier = Modifier.size(66.dp).clickable { showEmojiPicker = true }
                 ) {
                     Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 28.sp) }
@@ -1738,7 +1767,7 @@ fun CompactField(text: String, icon: ImageVector, onClick: () -> Unit) {
     Surface(
         color = Color.White,
         shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder),
         modifier = Modifier.fillMaxWidth().height(66.dp).clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1808,7 +1837,7 @@ fun TaskDateDialog(initialDate: LocalDate, onDismiss: () -> Unit, onConfirm: (Lo
             }
         },
         containerColor = Color.White,
-        shape = RoundedCornerShape(22.dp)
+        shape = RoundedCornerShape(AppRadius)
     )
 }
 
@@ -1906,7 +1935,7 @@ fun TimePickerDialog(initialTime: String, onDismiss: () -> Unit, onConfirm: (Str
             }
         },
         containerColor = Color.White,
-        shape = RoundedCornerShape(22.dp)
+        shape = RoundedCornerShape(AppRadius)
     )
 }
 
@@ -2041,7 +2070,7 @@ fun FieldLabel(text: String) {
 
 @Composable
 fun ParticipantsField(members: List<Member>, selectedIds: Set<String>, onChange: (Set<String>) -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
             if (members.isEmpty()) {
                 Text("Tout le foyer", color = Muted, fontSize = 18.sp)
@@ -2063,7 +2092,7 @@ fun ParticipantsField(members: List<Member>, selectedIds: Set<String>, onChange:
 
 @Composable
 fun EventTypeField(type: EventType, onClick: () -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)), modifier = Modifier.fillMaxWidth().height(66.dp).clickable(onClick = onClick)) {
+    Surface(color = Color.White, shape = RoundedCornerShape(FieldRadius), border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder), modifier = Modifier.fillMaxWidth().height(66.dp).clickable(onClick = onClick)) {
         Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(type.icon, fontSize = 25.sp)
             Spacer(Modifier.width(12.dp))
@@ -2075,7 +2104,7 @@ fun EventTypeField(type: EventType, onClick: () -> Unit) {
 
 @Composable
 fun RecurrenceField(value: String, onClick: () -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Surface(color = Color.White, shape = RoundedCornerShape(FieldRadius), border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Repeat, contentDescription = null, tint = Muted)
             Spacer(Modifier.width(12.dp))
@@ -2198,7 +2227,7 @@ fun NewEventTypeSheet(onDismiss: () -> Unit, onAdd: (String, String, Long) -> Un
 
 @Composable
 fun CompactTextField(text: String, tint: Color = Muted, onClick: () -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)), modifier = Modifier.fillMaxWidth().height(64.dp).clickable(onClick = onClick)) {
+    Surface(color = Color.White, shape = RoundedCornerShape(FieldRadius), border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder), modifier = Modifier.fillMaxWidth().height(64.dp).clickable(onClick = onClick)) {
         Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(text, color = tint, fontSize = 19.sp, modifier = Modifier.weight(1f))
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Muted)
@@ -2350,7 +2379,7 @@ fun AddBirthdaySheet(onDismiss: () -> Unit, onAdd: (String, LocalDate, String) -
 fun DateField(date: LocalDate, onClick: () -> Unit) {
     Surface(
         color = Color.White,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(FieldRadius),
         border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFD9D9D9)),
         modifier = Modifier.fillMaxWidth().height(72.dp).clickable(onClick = onClick)
     ) {
@@ -2558,10 +2587,10 @@ fun SoftInput(
         },
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         minLines = minLines,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(FieldRadius),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = DeepGreen,
-            unfocusedBorderColor = Color(0xFFE3E3E0),
+            unfocusedBorderColor = CardBorder,
             focusedContainerColor = Color.White,
             unfocusedContainerColor = Color.White
         ),
@@ -2571,17 +2600,23 @@ fun SoftInput(
 
 @Composable
 fun ListRow(content: @Composable RowScope.() -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, content = content)
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(AppRadius),
+        border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, content = content)
     }
 }
 
 @Composable
 fun StatBubble(label: String, value: String) {
-    Surface(color = SoftGrey, shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp)) {
-            Text(label, color = Muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(value, color = DeepGreen, fontSize = 28.sp, fontWeight = FontWeight.Black)
+    Surface(color = SoftGrey, shape = RoundedCornerShape(AppRadius), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp)) {
+            Text(label, color = Muted, fontSize = 14.sp, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(4.dp))
+            Text(value, color = DeepGreen, fontSize = 30.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black)
         }
     }
 }
@@ -2616,13 +2651,14 @@ fun MonthPreview() {
 fun PrimaryButton(text: String, icon: ImageVector, onClick: () -> Unit) {
     Button(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(FieldRadius),
         colors = ButtonDefaults.buttonColors(containerColor = DeepGreen),
-        modifier = Modifier.fillMaxWidth().height(62.dp)
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 0.dp),
+        modifier = Modifier.fillMaxWidth().height(64.dp)
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription = null, modifier = Modifier.size(25.dp))
         Spacer(Modifier.width(10.dp))
-        Text(text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(text, fontSize = 20.sp, fontWeight = FontWeight.Black)
     }
 }
 
@@ -2630,13 +2666,14 @@ fun PrimaryButton(text: String, icon: ImageVector, onClick: () -> Unit) {
 fun SecondaryButton(text: String, icon: ImageVector, onClick: () -> Unit) {
     Button(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(FieldRadius),
         colors = ButtonDefaults.buttonColors(containerColor = SoftGrey, contentColor = DeepGreen),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth().height(58.dp)
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(10.dp))
-        Text(text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(text, fontSize = 18.sp, fontWeight = FontWeight.Black)
     }
 }
 
@@ -2657,23 +2694,44 @@ fun BoxScope.FloatingHomeButton(visible: Boolean, onClick: () -> Unit) {
 
 @Composable
 fun RoundIconButton(icon: ImageVector, tint: Color, onClick: () -> Unit) {
-    Surface(color = Color.White, shape = CircleShape, shadowElevation = 2.dp, modifier = Modifier.size(46.dp).clickable(onClick = onClick)) {
+    Surface(
+        color = Color.White,
+        shape = CircleShape,
+        shadowElevation = 3.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder.copy(alpha = 0.65f)),
+        modifier = Modifier.size(52.dp).clickable(onClick = onClick)
+    ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(27.dp))
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(28.dp))
         }
     }
 }
 
 @Composable
 fun BrandLogo(modifier: Modifier = Modifier) {
-    Text(
-        "Mon\nFoyer",
-        modifier = modifier,
-        color = DeepGreen,
-        fontSize = 33.sp,
-        lineHeight = 28.sp,
-        fontWeight = FontWeight.Black
-    )
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Canvas(Modifier.size(48.dp)) {
+            drawCircle(color = Mint, radius = 22.dp.toPx(), center = Offset(size.width / 2, size.height / 2))
+            val roof = Path().apply {
+                moveTo(12.dp.toPx(), 26.dp.toPx())
+                lineTo(24.dp.toPx(), 15.dp.toPx())
+                lineTo(36.dp.toPx(), 26.dp.toPx())
+            }
+            drawPath(roof, color = DeepGreen, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx()))
+            drawLine(DeepGreen, Offset(15.dp.toPx(), 25.dp.toPx()), Offset(15.dp.toPx(), 36.dp.toPx()), strokeWidth = 4.dp.toPx())
+            drawLine(DeepGreen, Offset(33.dp.toPx(), 25.dp.toPx()), Offset(33.dp.toPx(), 36.dp.toPx()), strokeWidth = 4.dp.toPx())
+            drawLine(DeepGreen, Offset(15.dp.toPx(), 36.dp.toPx()), Offset(33.dp.toPx(), 36.dp.toPx()), strokeWidth = 4.dp.toPx())
+            drawLine(DeepGreen, Offset(23.dp.toPx(), 36.dp.toPx()), Offset(23.dp.toPx(), 30.dp.toPx()), strokeWidth = 3.dp.toPx())
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "Mon\nFoyer",
+            color = DeepGreen,
+            fontSize = 31.sp,
+            lineHeight = 27.sp,
+            fontWeight = FontWeight.Black
+        )
+    }
 }
 
 @Composable
