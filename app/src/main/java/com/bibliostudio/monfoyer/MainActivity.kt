@@ -869,7 +869,7 @@ fun Dashboard(vm: MonFoyerViewModel) {
         ModuleTile(Tab.Tasks, "Taches", "A faire ensemble", state.tasks.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFBDEBFF), Color(0xFF90D6F7)), Icons.Filled.CheckCircle, "✅", Color(0xFF3C93D8)),
         ModuleTile(Tab.Notes, "Notes", "Idees et pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFB6C7), Color(0xFFFFD7E1)), Icons.Filled.EditNote, "📝", Color(0xFFE85F8C)),
         ModuleTile(Tab.Budget, "Budget", "Factures et reste", null, listOf(Color(0xFFFFC6A8), Color(0xFFFFE0A8)), Icons.Filled.Payments, "💶", Color(0xFFE07A35)),
-        ModuleTile(Tab.Birthdays, "Anniversaires", "Dates importantes", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFD8C8FF), Color(0xFFFFD2EE)), Icons.Filled.Group, "🎂", Color(0xFF8B6CE8)),
+        ModuleTile(Tab.Birthdays, "Anniv.", "Dates importantes", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFD8C8FF), Color(0xFFFFD2EE)), Icons.Filled.Group, "🎂", Color(0xFF8B6CE8)),
         ModuleTile(Tab.Members, "Foyer", "Membres et code", state.members.size.toString(), listOf(Color(0xFFC8F0EA), Color(0xFFAEDFF3)), Icons.Filled.Group, "🏡", DeepGreen)
     )
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
@@ -969,12 +969,12 @@ fun HomeInsightStrip(state: AppUiState) {
     val remainingShopping = state.shopping.count { !it.done }
     val birthdayLabel = nextBirthday?.let {
         val days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), it.nextBirthday()).coerceAtLeast(0)
-        "${it.name} J-$days"
-    } ?: "Aucun anniv."
+        "J-$days ${it.name}"
+    } ?: "Aucun"
     val insights = listOf(
-        "📅 $todayEvents aujourd'hui",
+        "📅 $todayEvents auj.",
         "✅ $openTasks taches",
-        "🛒 $remainingShopping courses",
+        "🛒 $remainingShopping items",
         "🎂 $birthdayLabel"
     )
     LazyVerticalGrid(
@@ -982,12 +982,12 @@ fun HomeInsightStrip(state: AppUiState) {
         userScrollEnabled = false,
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.height(88.dp)
+        modifier = Modifier.height(116.dp)
     ) {
         gridItems(insights) { insight ->
-            Surface(color = Color.White.copy(alpha = 0.72f), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)) {
-                Box(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
-                    Text(insight, fontSize = 14.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Surface(color = Color.White.copy(alpha = 0.76f), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)) {
+                Box(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(insight, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
