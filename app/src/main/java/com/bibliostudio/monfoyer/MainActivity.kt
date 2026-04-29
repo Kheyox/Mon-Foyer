@@ -1,4 +1,4 @@
-package com.bibliostudio.monfyer
+package com.bibliostudio.monfoyer
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

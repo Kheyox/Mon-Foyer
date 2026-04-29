@@ -9,7 +9,7 @@ if (file("google-services.json").exists()) {
 }
 
 android {
-    namespace = "com.bibliostudio.monfyer"
+    namespace = "com.bibliostudio.monfoyer"
     compileSdk = 35
 
     val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
@@ -30,7 +30,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.bibliostudio.monfyer"
+        applicationId = "com.bibliostudio.monfoyer"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

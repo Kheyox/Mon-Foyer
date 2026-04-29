@@ -13,7 +13,7 @@ Application Android native pour organiser le quotidien d'un foyer : courses, bud
 ## Configuration Firebase
 
 1. Dans Firebase, ouvre le projet `mon-foyer-65616`.
-2. Ajoute une application Android avec le package `com.bibliostudio.monfyer`.
+2. Ajoute une application Android avec le package `com.bibliostudio.monfoyer`.
 3. Telecharge `google-services.json`.
 4. Place le fichier dans `app/google-services.json`.
 5. Active Authentication > Sign-in method > Google.
