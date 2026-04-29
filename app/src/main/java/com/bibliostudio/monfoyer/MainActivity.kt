@@ -579,7 +579,6 @@ fun AppHeader(activeTab: Tab, householdName: String, onHome: () -> Unit, onSelec
                         Text(activeTab.label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
                     }
                 }
-                RoundIconButton(icon = Icons.Filled.Group, tint = Ink, onClick = {})
             }
         } else {
             Text(householdName, color = Muted, fontSize = 15.sp, fontWeight = FontWeight.Medium)
@@ -1246,7 +1245,7 @@ fun AddTaskSheet(members: List<Member>, onDismiss: () -> Unit, onAdd: (String, S
         }
     }
     if (showDatePicker) {
-        BirthdayDateSheet(
+        TaskDateDialog(
             initialDate = selectedDate,
             onDismiss = { showDatePicker = false },
             onConfirm = {
@@ -1284,6 +1283,114 @@ fun CompactField(text: String, icon: ImageVector, onClick: () -> Unit) {
         Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(text, color = Muted, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Icon(icon, contentDescription = null, tint = Muted, modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+@Composable
+fun TaskDateDialog(initialDate: LocalDate, onDismiss: () -> Unit, onConfirm: (LocalDate) -> Unit) {
+    var selectedDate by remember { mutableStateOf(initialDate) }
+    var visibleMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        text = {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    IconButton(onClick = { visibleMonth = visibleMonth.minusMonths(1) }) {
+                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Mois precedent", tint = Ink)
+                    }
+                    val title = visibleMonth.month.getDisplayName(TextStyle.FULL, Locale.FRANCE)
+                        .replaceFirstChar { it.titlecase(Locale.FRANCE) }
+                    Text(
+                        "$title ${visibleMonth.year}",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Ink,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { visibleMonth = visibleMonth.plusMonths(1) }) {
+                        Icon(Icons.Filled.ChevronRight, contentDescription = "Mois suivant", tint = Ink)
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.").forEach {
+                        Text(it, fontSize = 15.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                TaskDateGrid(month = visibleMonth, selectedDate = selectedDate) {
+                    selectedDate = it
+                    visibleMonth = YearMonth.from(it)
+                }
+                Spacer(Modifier.height(22.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = DeepGreen),
+                        modifier = Modifier.weight(1f).height(58.dp)
+                    ) {
+                        Text("Annuler", fontSize = 19.sp, fontWeight = FontWeight.Black)
+                    }
+                    Button(
+                        onClick = { onConfirm(selectedDate) },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = DeepGreen, contentColor = Color.White),
+                        modifier = Modifier.weight(1f).height(58.dp)
+                    ) {
+                        Text("Ok", fontSize = 19.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(22.dp)
+    )
+}
+
+@Composable
+fun TaskDateGrid(month: YearMonth, selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit) {
+    val firstDay = month.atDay(1)
+    val leading = firstDay.dayOfWeek.value - 1
+    val previousMonth = month.minusMonths(1)
+    val previousStart = previousMonth.lengthOfMonth() - leading + 1
+    val previousDays = if (leading == 0) emptyList() else (previousStart..previousMonth.lengthOfMonth()).map { previousMonth.atDay(it) }
+    val currentDays = (1..month.lengthOfMonth()).map { month.atDay(it) }
+    val trailingCount = (42 - previousDays.size - currentDays.size).coerceAtLeast(0)
+    val nextDays = (1..trailingCount).map { month.plusMonths(1).atDay(it) }
+    val days = previousDays + currentDays + nextDays
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(7),
+        userScrollEnabled = false,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.height(300.dp)
+    ) {
+        gridItems(days) { date ->
+            val isCurrent = YearMonth.from(date) == month
+            val selected = date == selectedDate
+            Box(
+                Modifier
+                    .height(42.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) DeepGreen else Color.Transparent)
+                    .clickable { onDateSelected(date) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    date.dayOfMonth.toString(),
+                    fontSize = 20.sp,
+                    fontWeight = if (selected) FontWeight.Black else FontWeight.Normal,
+                    color = when {
+                        selected -> Color.White
+                        isCurrent -> Ink
+                        else -> Muted.copy(alpha = 0.65f)
+                    }
+                )
+            }
         }
     }
 }
