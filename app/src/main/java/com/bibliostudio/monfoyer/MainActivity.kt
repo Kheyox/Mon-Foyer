@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Button
@@ -1147,20 +1148,21 @@ fun MemberPicker(members: List<Member>, selectedMemberId: String, onSelect: (Str
 }
 
 @Composable
-fun MemberChip(label: String, selected: Boolean, color: Color, onClick: () -> Unit) {
+fun MemberChip(label: String, selected: Boolean, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
         color = if (selected) color else SoftGrey,
         shape = RoundedCornerShape(50),
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = modifier.clickable(onClick = onClick)
     ) {
         Text(
             label,
             color = if (selected) Color.White else Ink,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 2,
+            lineHeight = 16.sp,
+            overflow = TextOverflow.Clip
         )
     }
 }
@@ -1476,6 +1478,60 @@ fun TaskDateGrid(month: YearMonth, selectedDate: LocalDate, onDateSelected: (Loc
     }
 }
 
+@Composable
+fun TimePickerDialog(initialTime: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    val parts = initialTime.split(":")
+    var hour by remember { mutableStateOf(parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 0) }
+    var minute by remember { mutableStateOf(parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        text = {
+            Column {
+                Text("Selectionner l'heure", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Ink)
+                Spacer(Modifier.height(26.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.fillMaxWidth()) {
+                    PickerColumn(
+                        values = (0..23).toList(),
+                        selected = hour,
+                        label = { "%02d".format(it) },
+                        onSelect = { hour = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PickerColumn(
+                        values = listOf(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55),
+                        selected = minute - (minute % 5),
+                        label = { "%02d".format(it) },
+                        onSelect = { minute = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(Modifier.height(22.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = DeepGreen),
+                        modifier = Modifier.weight(1f).height(58.dp)
+                    ) {
+                        Text("Annuler", fontSize = 19.sp, fontWeight = FontWeight.Black)
+                    }
+                    Button(
+                        onClick = { onConfirm("%02d:%02d".format(hour, minute)) },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = DeepGreen, contentColor = Color.White),
+                        modifier = Modifier.weight(1f).height(58.dp)
+                    ) {
+                        Text("Ok", fontSize = 19.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(22.dp)
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEventSheet(
@@ -1495,6 +1551,7 @@ fun AddEventSheet(
     var selectedDate by remember { mutableStateOf(initialDate) }
     var showDatePicker by remember { mutableStateOf(false) }
     var time by remember { mutableStateOf("00:00") }
+    var showTimePicker by remember { mutableStateOf(false) }
     var allDay by remember { mutableStateOf(false) }
     var recurrence by remember { mutableStateOf("Aucune") }
     var showRecurrence by remember { mutableStateOf(false) }
@@ -1544,7 +1601,7 @@ fun AddEventSheet(
                     }
                     Column(Modifier.weight(1f)) {
                         FieldLabel("Heure")
-                        CompactField(time, Icons.Filled.CalendarMonth) { time = nextTimeValue(time) }
+                        CompactField(time, Icons.Filled.Schedule) { showTimePicker = true }
                     }
                 }
                 Spacer(Modifier.height(20.dp))
@@ -1570,6 +1627,16 @@ fun AddEventSheet(
             selectedDate = it
             showDatePicker = false
         }
+    }
+    if (showTimePicker) {
+        TimePickerDialog(
+            initialTime = time,
+            onDismiss = { showTimePicker = false },
+            onConfirm = {
+                time = it
+                showTimePicker = false
+            }
+        )
     }
     if (showTypeSheet) {
         EventTypeSheet(
@@ -1645,9 +1712,23 @@ fun RecurrenceField(value: String, onClick: () -> Unit) {
 
 @Composable
 fun RecurrencePicker(selected: String, onSelect: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        listOf("Aucune", "Chaque jour", "Chaque semaine", "Chaque mois").forEach { value ->
-            MemberChip(label = value, selected = selected == value, color = DeepGreen) { onSelect(value) }
+    val options = listOf(
+        "Aucune",
+        "Tous les jours",
+        "Tous les jours ouvrés",
+        "Toutes les semaines",
+        "Toutes les 2 semaines",
+        "Tous les mois",
+        "Tous les ans"
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        options.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { value ->
+                    MemberChip(label = value, selected = selected == value, color = DeepGreen, modifier = Modifier.weight(1f)) { onSelect(value) }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
