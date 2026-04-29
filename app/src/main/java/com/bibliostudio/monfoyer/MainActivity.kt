@@ -797,60 +797,65 @@ fun Dashboard(vm: MonFoyerViewModel) {
 
 @Composable
 fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
+    val titleSize = if (tile.title.length > 10) 23.sp else 25.sp
     Box(
         modifier = Modifier
-            .height(188.dp)
+            .height(176.dp)
             .clip(RoundedCornerShape(32.dp))
             .background(androidx.compose.ui.graphics.Brush.linearGradient(tile.colors))
             .clickable(onClick = onClick)
-            .padding(18.dp)
+            .padding(16.dp)
     ) {
         Canvas(Modifier.matchParentSize()) {
             drawCircle(
-                color = Color.White.copy(alpha = 0.34f),
-                radius = 58.dp.toPx(),
-                center = Offset(size.width - 16.dp.toPx(), size.height - 10.dp.toPx())
+                color = Color.White.copy(alpha = 0.24f),
+                radius = 70.dp.toPx(),
+                center = Offset(size.width - 6.dp.toPx(), size.height - 2.dp.toPx())
             )
             drawCircle(
-                color = tile.accent.copy(alpha = 0.16f),
-                radius = 24.dp.toPx(),
-                center = Offset(size.width - 108.dp.toPx(), 34.dp.toPx())
+                color = tile.accent.copy(alpha = 0.14f),
+                radius = 30.dp.toPx(),
+                center = Offset(28.dp.toPx(), 28.dp.toPx())
             )
             drawCircle(
-                color = Color.White.copy(alpha = 0.28f),
-                radius = 12.dp.toPx(),
-                center = Offset(24.dp.toPx(), size.height - 26.dp.toPx())
+                color = Color.White.copy(alpha = 0.26f),
+                radius = 18.dp.toPx(),
+                center = Offset(size.width - 86.dp.toPx(), size.height - 26.dp.toPx())
             )
         }
-        Column(Modifier.align(Alignment.TopStart)) {
-            Surface(color = Color.White.copy(alpha = 0.62f), shape = RoundedCornerShape(50)) {
+        Surface(color = Color.White.copy(alpha = 0.54f), shape = RoundedCornerShape(50), modifier = Modifier.align(Alignment.TopStart)) {
+            Box(Modifier.width(104.dp)) {
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(tile.icon, contentDescription = null, tint = tile.accent, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(5.dp))
                     Text(tile.subtitle, fontSize = 11.sp, fontWeight = FontWeight.Black, color = tile.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            Spacer(Modifier.height(10.dp))
+        }
+        Text(
+            tile.emoji,
+            fontSize = 58.sp,
+            modifier = Modifier.align(Alignment.Center).offset(y = 10.dp)
+        )
+        Column(
+            Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(end = 8.dp)
+        ) {
             Text(
                 tile.title,
-                fontSize = 28.sp,
-                lineHeight = 30.sp,
+                fontSize = titleSize,
+                lineHeight = (titleSize.value + 2).sp,
                 fontWeight = FontWeight.Black,
                 color = Ink,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Box(
-            Modifier.align(Alignment.BottomEnd).size(86.dp)
-                .clip(RoundedCornerShape(26.dp)).background(Color.White.copy(alpha = 0.72f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(tile.emoji, fontSize = 48.sp)
-        }
         tile.count?.let {
-            Surface(color = tile.accent, shape = CircleShape, shadowElevation = 3.dp, modifier = Modifier.align(Alignment.BottomStart)) {
-                Text(it, modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp), fontSize = 17.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Surface(color = tile.accent, shape = CircleShape, shadowElevation = 3.dp, modifier = Modifier.align(Alignment.TopEnd)) {
+                Text(it, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp), fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
     }
