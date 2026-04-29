@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Mon Foyer</string>
+    <string name="web_client_id">REMPLACE_PAR_LE_CLIENT_WEB_FIREBASE</string>
+</resources>
