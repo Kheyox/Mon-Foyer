@@ -1,9 +1,14 @@
 package com.bibliostudio.monfoyer
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -345,6 +350,39 @@ class MonFoyerViewModel : ViewModel() {
             )
         )
     }
+    fun updateEvent(
+        eventId: String,
+        title: String,
+        description: String,
+        location: String,
+        owner: String,
+        date: String,
+        time: String,
+        allDay: Boolean,
+        recurrence: String,
+        type: EventType
+    ) {
+        if (title.isBlank()) return
+        val household = state.household ?: return
+        db.collection("households").document(household.id).collection("events").document(eventId)
+            .update(
+                mapOf(
+                    "title" to title.trim(),
+                    "description" to description,
+                    "location" to location,
+                    "owner" to owner,
+                    "date" to date,
+                    "time" to time,
+                    "allDay" to allDay,
+                    "recurrence" to recurrence,
+                    "typeName" to type.name,
+                    "typeIcon" to type.icon,
+                    "typeColor" to type.color,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
+    }
     fun addEventType(name: String, icon: String, color: Long) {
         if (name.isBlank()) return
         add("eventTypes", mapOf("name" to name, "icon" to icon, "color" to color))
@@ -395,11 +433,54 @@ class MonFoyerViewModel : ViewModel() {
             )
         )
     }
+    fun updateBirthday(birthdayId: String, name: String, date: LocalDate, birthYear: String) {
+        val household = state.household ?: return
+        if (name.isBlank()) return
+        db.collection("households").document(household.id).collection("birthdays").document(birthdayId)
+            .update(
+                mapOf(
+                    "name" to name.trim(),
+                    "date" to date.format(DateTimeFormatter.ISO_DATE),
+                    "birthYear" to (birthYear.toIntOrNull() ?: date.year),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
+    }
 
     fun toggleShopping(item: ShoppingItem) = update("shoppingItems", item.id, "done", !item.done)
     fun toggleShoppingFavorite(item: ShoppingItem) = update("shoppingItems", item.id, "favorite", !item.favorite)
     fun toggleBill(bill: Bill) = update("bills", bill.id, "paid", !bill.paid)
     fun toggleTask(task: HouseholdTask) = update("tasks", task.id, "done", !task.done)
+    fun updateShoppingItem(itemId: String, name: String, quantity: String, category: String) {
+        val household = state.household ?: return
+        val cleanName = name.trim()
+        if (cleanName.isBlank()) return
+        db.collection("households").document(household.id).collection("shoppingItems").document(itemId)
+            .update(
+                mapOf(
+                    "name" to cleanName,
+                    "quantity" to (quantity.toIntOrNull() ?: 1).coerceAtLeast(1),
+                    "category" to category.ifBlank { shoppingCategory(cleanName) },
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
+    }
+    fun updateBill(billId: String, label: String, amount: String) {
+        val household = state.household ?: return
+        if (label.isBlank()) return
+        db.collection("households").document(household.id).collection("bills").document(billId)
+            .update(mapOf("label" to label.trim(), "amount" to (amount.toDoubleOrNull() ?: 0.0), "updatedAt" to FieldValue.serverTimestamp()))
+            .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
+    }
+    fun updateNote(noteId: String, title: String, body: String) {
+        val household = state.household ?: return
+        if (title.isBlank() && body.isBlank()) return
+        db.collection("households").document(household.id).collection("notes").document(noteId)
+            .update(mapOf("title" to title.trim(), "body" to body.trim(), "updatedAt" to FieldValue.serverTimestamp()))
+            .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
+    }
     fun delete(collection: String, id: String) {
         val household = state.household ?: return
         db.collection("households").document(household.id).collection(collection).document(id).delete()
@@ -645,6 +726,18 @@ fun MonFoyerApp(vm: MonFoyerViewModel = viewModel()) {
 }
 
 @Composable
+fun NotificationPermissionEffect() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    LaunchedEffect(Unit) {
+        if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+}
+
+@Composable
 fun SignInScreen(vm: MonFoyerViewModel) {
     val context = LocalContext.current as ComponentActivity
     val scope = rememberCoroutineScope()
@@ -692,6 +785,10 @@ fun HouseholdGate(vm: MonFoyerViewModel) {
 @Composable
 fun HomeShell(vm: MonFoyerViewModel) {
     val context = LocalContext.current as ComponentActivity
+    NotificationPermissionEffect()
+    LaunchedEffect(vm.state.events, vm.state.tasks, vm.state.birthdays) {
+        ReminderScheduler.refresh(context, vm.state.events, vm.state.tasks, vm.state.birthdays)
+    }
     BackHandler(enabled = vm.state.selectedTab != Tab.Home) {
         vm.select(Tab.Home)
     }
@@ -781,7 +878,9 @@ fun Dashboard(vm: MonFoyerViewModel) {
             Text("✨", fontSize = 30.sp)
         }
         Text("Un foyer organise, vivant, et un peu plus joyeux.", fontSize = 15.sp, color = Muted, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(14.dp))
+        HomeInsightStrip(state)
+        Spacer(Modifier.height(16.dp))
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -862,6 +961,54 @@ fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
 }
 
 @Composable
+fun HomeInsightStrip(state: AppUiState) {
+    val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
+    val todayEvents = state.events.count { it.date == today }
+    val openTasks = state.tasks.count { !it.done }
+    val nextBirthday = state.birthdays.minByOrNull { it.nextBirthday() }
+    val remainingShopping = state.shopping.count { !it.done }
+    val birthdayLabel = nextBirthday?.let {
+        val days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), it.nextBirthday()).coerceAtLeast(0)
+        "${it.name} J-$days"
+    } ?: "Aucun anniv."
+    val insights = listOf(
+        "📅 $todayEvents aujourd'hui",
+        "✅ $openTasks taches",
+        "🛒 $remainingShopping courses",
+        "🎂 $birthdayLabel"
+    )
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        userScrollEnabled = false,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.height(88.dp)
+    ) {
+        gridItems(insights) { insight ->
+            Surface(color = Color.White.copy(alpha = 0.72f), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)) {
+                Box(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(insight, fontSize = 14.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyState(emoji: String, title: String, body: String) {
+    Surface(color = SoftGrey, shape = RoundedCornerShape(AppRadius), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(emoji, fontSize = 34.sp)
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
+                Text(body, fontSize = 14.sp, lineHeight = 17.sp, color = Muted, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@Composable
 fun HomeMenu(expanded: Boolean, onDismiss: () -> Unit, onSelect: (Tab) -> Unit, onSignOut: () -> Unit) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = Color.White) {
         listOf(Tab.Home, Tab.Shopping, Tab.Calendar, Tab.Tasks, Tab.Birthdays, Tab.Budget, Tab.Notes, Tab.Members).forEach { tab ->
@@ -883,6 +1030,7 @@ fun HomeMenu(expanded: Boolean, onDismiss: () -> Unit, onSelect: (Tab) -> Unit, 
 fun ShoppingScreen(vm: MonFoyerViewModel) {
     var name by remember { mutableStateOf("") }
     var confirmClear by remember { mutableStateOf(false) }
+    var editingItem by remember { mutableStateOf<ShoppingItem?>(null) }
     val checkedCount = vm.state.shopping.count { it.done }
     val favoriteItems = vm.state.shopping.filter { it.favorite }.distinctBy { it.name }.take(4)
     val sortedItems = vm.state.shopping.sortedWith(compareBy<ShoppingItem> { it.done }.thenBy { it.category }.thenBy { it.name })
@@ -909,8 +1057,17 @@ fun ShoppingScreen(vm: MonFoyerViewModel) {
                 Spacer(Modifier.height(10.dp))
             }
         }
+        if (sortedItems.isEmpty()) {
+            item { EmptyState("🛒", "Liste vide", "Ajoute un article, avec une quantite si besoin : 2 lait.") }
+        }
         items(sortedItems) { item ->
-            ListRow {
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(AppRadius),
+                border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+                modifier = Modifier.fillMaxWidth().clickable { editingItem = item }
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { vm.toggleShopping(item) }, modifier = Modifier.size(48.dp)) {
                     Icon(if (item.done) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Etat", tint = if (item.done) DeepGreen else Color(0xFFDADADA), modifier = Modifier.size(34.dp))
                 }
@@ -926,6 +1083,7 @@ fun ShoppingScreen(vm: MonFoyerViewModel) {
                     modifier = Modifier.clickable { vm.toggleShoppingFavorite(item) }.padding(horizontal = 8.dp)
                 )
                 DeleteButton { vm.delete("shoppingItems", item.id) }
+                }
             }
         }
     }
@@ -940,6 +1098,16 @@ fun ShoppingScreen(vm: MonFoyerViewModel) {
             onDismiss = { confirmClear = false }
         )
     }
+    editingItem?.let { item ->
+        EditShoppingSheet(
+            item = item,
+            onDismiss = { editingItem = null },
+            onSave = { itemName, quantity, category ->
+                vm.updateShoppingItem(item.id, itemName, quantity, category)
+                editingItem = null
+            }
+        )
+    }
 }
 
 @Composable
@@ -947,6 +1115,7 @@ fun BudgetScreen(vm: MonFoyerViewModel) {
     var budget by remember(vm.state.monthlyBudget) { mutableStateOf(if (vm.state.monthlyBudget == 0.0) "" else vm.state.monthlyBudget.toString()) }
     var label by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
+    var editingBill by remember { mutableStateOf<Bill?>(null) }
     val unpaid = vm.state.bills.filterNot { it.paid }.sumOf { it.amount }
     val remaining = vm.state.monthlyBudget - unpaid
     ModulePanel(title = "Budget") {
@@ -968,7 +1137,13 @@ fun BudgetScreen(vm: MonFoyerViewModel) {
             }
         }
         items(vm.state.bills) { bill ->
-            ListRow {
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(AppRadius),
+                border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+                modifier = Modifier.fillMaxWidth().clickable { editingBill = bill }
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { vm.toggleBill(bill) }, modifier = Modifier.size(48.dp)) {
                     Icon(if (bill.paid) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Payee", tint = if (bill.paid) DeepGreen else Color(0xFFDADADA), modifier = Modifier.size(34.dp))
                 }
@@ -977,14 +1152,26 @@ fun BudgetScreen(vm: MonFoyerViewModel) {
                     Text("${"%.2f".format(bill.amount)} EUR", fontSize = 16.sp, color = Muted)
                 }
                 DeleteButton { vm.delete("bills", bill.id) }
+                }
             }
         }
+    }
+    editingBill?.let { bill ->
+        EditBillSheet(
+            bill = bill,
+            onDismiss = { editingBill = null },
+            onSave = { billLabel, billAmount ->
+                vm.updateBill(bill.id, billLabel, billAmount)
+                editingBill = null
+            }
+        )
     }
 }
 
 @Composable
 fun AgendaScreen(vm: MonFoyerViewModel) {
     var showAddSheet by remember { mutableStateOf(false) }
+    var editingEvent by remember { mutableStateOf<Event?>(null) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var visibleMonth by remember { mutableStateOf(YearMonth.from(selectedDate)) }
     val selectedDateText = selectedDate.format(DateTimeFormatter.ISO_DATE)
@@ -1020,22 +1207,29 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
             )
             Spacer(Modifier.height(18.dp))
             if (selectedEvents.isEmpty()) {
-                Text("Aucun evenement ce jour", color = Muted, fontSize = 18.sp)
+                EmptyState("🌤️", "Journee libre", "Aucun evenement prevu ce jour.")
             } else {
                 selectedEvents.forEach { event ->
-                    CalendarEventPill(event)
+                    CalendarEventPill(event, onClick = { editingEvent = event })
                     Spacer(Modifier.height(8.dp))
                 }
             }
             Spacer(Modifier.height(12.dp))
         }
         items(vm.state.events) { event ->
-            ListRow {
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(AppRadius),
+                border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+                modifier = Modifier.fillMaxWidth().clickable { editingEvent = event }
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(event.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
                     Text(listOf(event.date, if (event.allDay) "Toute la journee" else event.time, event.owner).filter { it.isNotBlank() }.joinToString(" - "), fontSize = 16.sp, color = Muted)
                 }
                 DeleteButton { vm.delete("events", event.id) }
+                }
             }
         }
     }
@@ -1051,6 +1245,22 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
                 selectedDate = date
                 visibleMonth = YearMonth.from(date)
                 showAddSheet = false
+            }
+        )
+    }
+    editingEvent?.let { event ->
+        AddEventSheet(
+            members = vm.state.members,
+            eventTypes = vm.state.eventTypes.ifEmpty { defaultEventTypes() },
+            initialDate = runCatching { LocalDate.parse(event.date) }.getOrDefault(selectedDate),
+            event = event,
+            onDismiss = { editingEvent = null },
+            onAddType = { name, icon, color -> vm.addEventType(name, icon, color) },
+            onAdd = { title, description, location, owner, date, time, allDay, recurrence, type ->
+                vm.updateEvent(event.id, title, description, location, owner, date.format(DateTimeFormatter.ISO_DATE), time, allDay, recurrence, type)
+                selectedDate = date
+                visibleMonth = YearMonth.from(date)
+                editingEvent = null
             }
         )
     }
@@ -1102,7 +1312,7 @@ fun TasksScreen(vm: MonFoyerViewModel) {
             }
         }
         if (filteredTasks.isEmpty()) {
-            item { Text("Aucune tache ici", color = Muted, fontSize = 18.sp) }
+            item { EmptyState("✅", "Rien a faire ici", "Les taches apparaitront selon ton filtre.") }
         }
         items(filteredTasks) { task ->
             TaskCard(
@@ -1151,6 +1361,7 @@ fun TasksScreen(vm: MonFoyerViewModel) {
 fun BirthdaysScreen(vm: MonFoyerViewModel) {
     var showAddSheet by remember { mutableStateOf(false) }
     var birthdayToDelete by remember { mutableStateOf<Birthday?>(null) }
+    var editingBirthday by remember { mutableStateOf<Birthday?>(null) }
     ModulePanel(title = "Anniversaires") {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -1164,8 +1375,11 @@ fun BirthdaysScreen(vm: MonFoyerViewModel) {
                 }
             }
         }
+        if (vm.state.birthdays.isEmpty()) {
+            item { EmptyState("🎂", "Aucun anniversaire", "Ajoute les dates importantes du foyer.") }
+        }
         items(vm.state.birthdays.sortedBy { it.nextBirthday() }) { birthday ->
-            BirthdayRow(birthday) { birthdayToDelete = birthday }
+            BirthdayRow(birthday, onClick = { editingBirthday = birthday }) { birthdayToDelete = birthday }
         }
     }
     if (showAddSheet) {
@@ -1188,12 +1402,23 @@ fun BirthdaysScreen(vm: MonFoyerViewModel) {
             onDismiss = { birthdayToDelete = null }
         )
     }
+    editingBirthday?.let { birthday ->
+        AddBirthdaySheet(
+            birthday = birthday,
+            onDismiss = { editingBirthday = null },
+            onAdd = { name, date, year ->
+                vm.updateBirthday(birthday.id, name, date, year)
+                editingBirthday = null
+            }
+        )
+    }
 }
 
 @Composable
 fun NotesScreen(vm: MonFoyerViewModel) {
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
+    var editingNote by remember { mutableStateOf<Note?>(null) }
     ModulePanel(title = "Notes") {
         item {
             SoftInput(value = title, onValueChange = { title = it }, label = "Titre")
@@ -1206,25 +1431,47 @@ fun NotesScreen(vm: MonFoyerViewModel) {
                 body = ""
             }
         }
+        if (vm.state.notes.isEmpty()) {
+            item { EmptyState("📝", "Aucune note", "Note une idee, un code, ou une petite info a garder.") }
+        }
         items(vm.state.notes) { note ->
-            ListRow {
+            Surface(
+                color = Color.White,
+                shape = RoundedCornerShape(AppRadius),
+                border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+                modifier = Modifier.fillMaxWidth().clickable { editingNote = note }
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(note.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
                     Text(note.body, fontSize = 16.sp, color = Muted)
                 }
                 DeleteButton { vm.delete("notes", note.id) }
+                }
             }
         }
+    }
+    editingNote?.let { note ->
+        EditNoteSheet(
+            note = note,
+            onDismiss = { editingNote = null },
+            onSave = { noteTitle, noteBody ->
+                vm.updateNote(note.id, noteTitle, noteBody)
+                editingNote = null
+            }
+        )
     }
 }
 
 @Composable
 fun MembersScreen(vm: MonFoyerViewModel) {
     val state = vm.state
+    val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
     var editingMember by remember { mutableStateOf<Member?>(null) }
     var confirmLeave by remember { mutableStateOf(false) }
+    var remindersEnabled by remember { mutableStateOf(ReminderScheduler.remindersEnabled(context)) }
     val currentMember = state.members.firstOrNull { it.id == state.currentUserId }
     val isAdmin = currentMember?.role == "admin"
 
@@ -1298,6 +1545,26 @@ fun MembersScreen(vm: MonFoyerViewModel) {
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                         )
                     }
+                }
+            }
+        }
+        item {
+            Surface(color = Color(0xFFFFF3C9), shape = RoundedCornerShape(AppRadius), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("🔔", fontSize = 30.sp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Notifications", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
+                        Text("Anniversaires, rendez-vous et taches proches.", fontSize = 14.sp, color = Muted)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = remindersEnabled,
+                        onCheckedChange = {
+                            remindersEnabled = it
+                            ReminderScheduler.setRemindersEnabled(context, it)
+                            ReminderScheduler.refresh(context, state.events, state.tasks, state.birthdays)
+                        }
+                    )
                 }
             }
         }
@@ -1451,6 +1718,81 @@ fun QuickAdd(value: String, onChange: (String) -> Unit, label: String, onAdd: ()
     Spacer(Modifier.height(14.dp))
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditShoppingSheet(item: ShoppingItem, onDismiss: () -> Unit, onSave: (String, String, String) -> Unit) {
+    var name by remember(item.id) { mutableStateOf(item.name) }
+    var quantity by remember(item.id) { mutableStateOf(item.quantity.toString()) }
+    var category by remember(item.id) { mutableStateOf(item.category) }
+    EditSheetScaffold(title = "Modifier l'article", emoji = "🛒", onDismiss = onDismiss) {
+        SoftInput(name, { name = it }, "Nom de l'article")
+        Spacer(Modifier.height(10.dp))
+        SoftInput(quantity, { quantity = it }, "Quantite", keyboardType = KeyboardType.Number)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            listOf("Frais", "Epicerie", "Hygiene", "Maison").forEach { value ->
+                TaskFilterChip(value, category == value) { category = value }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+        PrimaryButton("Enregistrer", Icons.Filled.CheckCircle) { onSave(name, quantity, category) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditBillSheet(bill: Bill, onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
+    var label by remember(bill.id) { mutableStateOf(bill.label) }
+    var amount by remember(bill.id) { mutableStateOf(if (bill.amount == 0.0) "" else bill.amount.toString()) }
+    EditSheetScaffold(title = "Modifier la facture", emoji = "💶", onDismiss = onDismiss) {
+        SoftInput(label, { label = it }, "Nom de la facture")
+        Spacer(Modifier.height(10.dp))
+        SoftInput(amount, { amount = it }, "Montant", keyboardType = KeyboardType.Decimal)
+        Spacer(Modifier.height(24.dp))
+        PrimaryButton("Enregistrer", Icons.Filled.CheckCircle) { onSave(label, amount) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditNoteSheet(note: Note, onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
+    var title by remember(note.id) { mutableStateOf(note.title) }
+    var body by remember(note.id) { mutableStateOf(note.body) }
+    EditSheetScaffold(title = "Modifier la note", emoji = "📝", onDismiss = onDismiss) {
+        SoftInput(title, { title = it }, "Titre")
+        Spacer(Modifier.height(10.dp))
+        SoftInput(body, { body = it }, "Note", minLines = 4)
+        Spacer(Modifier.height(24.dp))
+        PrimaryButton("Enregistrer", Icons.Filled.CheckCircle) { onSave(title, body) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditSheetScaffold(title: String, emoji: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = PanelRadius, topEnd = PanelRadius)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 24.dp).navigationBarsPadding()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(emoji, fontSize = 34.sp)
+                Spacer(Modifier.width(12.dp))
+                Text(title, fontSize = 28.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Fermer", tint = Ink, modifier = Modifier.size(32.dp))
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            content()
+            Spacer(Modifier.height(18.dp))
+        }
+    }
+}
+
 @Composable
 fun CalendarMonthView(
     month: YearMonth,
@@ -1524,8 +1866,8 @@ fun CalendarMonthView(
 }
 
 @Composable
-fun CalendarEventPill(event: Event) {
-    Surface(color = Color(event.typeColor).copy(alpha = 0.12f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+fun CalendarEventPill(event: Event, onClick: () -> Unit = {}) {
+    Surface(color = Color(event.typeColor).copy(alpha = 0.12f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(event.typeIcon, fontSize = 22.sp)
             Spacer(Modifier.width(10.dp))
@@ -1590,11 +1932,17 @@ fun DateChip(date: LocalDate) {
 }
 
 @Composable
-fun BirthdayRow(birthday: Birthday, onDelete: () -> Unit) {
+fun BirthdayRow(birthday: Birthday, onClick: () -> Unit = {}, onDelete: () -> Unit) {
     val next = birthday.nextBirthday()
     val age = if (birthday.birthYear > 0) next.year - birthday.birthYear else null
     val monthsAway = ((next.year - LocalDate.now().year) * 12 + next.monthValue - LocalDate.now().monthValue).coerceAtLeast(0)
-    ListRow {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(AppRadius),
+        border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(color = Color(0xFFEAF8EE), shape = RoundedCornerShape(12.dp), modifier = Modifier.size(58.dp)) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = Color(0xFF54B568), modifier = Modifier.size(31.dp))
@@ -1610,6 +1958,7 @@ fun BirthdayRow(birthday: Birthday, onDelete: () -> Unit) {
             Text("$it ans", fontSize = 19.sp, fontWeight = FontWeight.Black, color = Ink)
         }
         DeleteButton(onDelete)
+        }
     }
 }
 
@@ -1980,22 +2329,35 @@ fun AddEventSheet(
     members: List<Member>,
     eventTypes: List<EventType>,
     initialDate: LocalDate,
+    event: Event? = null,
     onDismiss: () -> Unit,
     onAddType: (String, String, Long) -> Unit,
     onAdd: (String, String, String, String, LocalDate, String, Boolean, String, EventType) -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var selectedMemberIds by remember(members) { mutableStateOf(members.map { it.id }.toSet()) }
-    var selectedType by remember(eventTypes) { mutableStateOf(eventTypes.firstOrNull() ?: defaultEventTypes().first()) }
+    var title by remember(event?.id) { mutableStateOf(event?.title.orEmpty()) }
+    var description by remember(event?.id) { mutableStateOf(event?.description.orEmpty()) }
+    var location by remember(event?.id) { mutableStateOf(event?.location.orEmpty()) }
+    var selectedMemberIds by remember(event?.id, members) {
+        mutableStateOf(
+            event?.owner?.let { owner ->
+                members.filter { member -> owner.contains(member.name.ifBlank { "Membre" }, ignoreCase = true) }.map { it.id }.toSet()
+            }?.takeIf { it.isNotEmpty() } ?: members.map { it.id }.toSet()
+        )
+    }
+    var selectedType by remember(event?.id, eventTypes) {
+        mutableStateOf(
+            event?.let { current ->
+                eventTypes.firstOrNull { it.name == current.typeName } ?: EventType(name = current.typeName, icon = current.typeIcon, color = current.typeColor)
+            } ?: eventTypes.firstOrNull() ?: defaultEventTypes().first()
+        )
+    }
     var showTypeSheet by remember { mutableStateOf(false) }
-    var selectedDate by remember { mutableStateOf(initialDate) }
+    var selectedDate by remember(event?.id) { mutableStateOf(initialDate) }
     var showDatePicker by remember { mutableStateOf(false) }
-    var time by remember { mutableStateOf("00:00") }
+    var time by remember(event?.id) { mutableStateOf(event?.time ?: "00:00") }
     var showTimePicker by remember { mutableStateOf(false) }
-    var allDay by remember { mutableStateOf(false) }
-    var recurrence by remember { mutableStateOf("Aucune") }
+    var allDay by remember(event?.id) { mutableStateOf(event?.allDay ?: false) }
+    var recurrence by remember(event?.id) { mutableStateOf(event?.recurrence ?: "Aucune") }
     var showRecurrence by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val owner = members.filter { it.id in selectedMemberIds }.joinToString(", ") { it.name.ifBlank { "Membre" } }.ifBlank { "Tout le foyer" }
@@ -2009,7 +2371,7 @@ fun AddEventSheet(
         LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 22.dp)) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text("Nouvel evenement", fontSize = 31.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                    Text(if (event == null) "Nouvel evenement" else "Modifier l'evenement", fontSize = 31.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
                     IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Fermer", tint = DeepGreen, modifier = Modifier.size(34.dp)) }
                 }
                 Spacer(Modifier.height(18.dp))
@@ -2057,7 +2419,7 @@ fun AddEventSheet(
                     }
                 }
                 Spacer(Modifier.height(34.dp))
-                PrimaryButton("Ajouter", Icons.Filled.CheckCircle) {
+                PrimaryButton(if (event == null) "Ajouter" else "Enregistrer", Icons.Filled.CheckCircle) {
                     onAdd(title, description, location, owner, selectedDate, time, allDay, recurrence, selectedType)
                 }
                 Spacer(Modifier.height(28.dp))
@@ -2345,9 +2707,11 @@ fun ConfirmDeleteDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddBirthdaySheet(onDismiss: () -> Unit, onAdd: (String, LocalDate, String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+fun AddBirthdaySheet(birthday: Birthday? = null, onDismiss: () -> Unit, onAdd: (String, LocalDate, String) -> Unit) {
+    var name by remember(birthday?.id) { mutableStateOf(birthday?.name.orEmpty()) }
+    var selectedDate by remember(birthday?.id) {
+        mutableStateOf(birthday?.date?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now())
+    }
     var showDateSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -2365,7 +2729,7 @@ fun AddBirthdaySheet(onDismiss: () -> Unit, onAdd: (String, LocalDate, String) -
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Ajouter une personne", fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                Text(if (birthday == null) "Ajouter une personne" else "Modifier la personne", fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Filled.Close, contentDescription = "Fermer", tint = Ink, modifier = Modifier.size(34.dp))
                 }
@@ -2393,7 +2757,7 @@ fun AddBirthdaySheet(onDismiss: () -> Unit, onAdd: (String, LocalDate, String) -
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(12.dp))
-                Text("Ajouter", fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text(if (birthday == null) "Ajouter" else "Enregistrer", fontSize = 22.sp, fontWeight = FontWeight.Black)
             }
             Spacer(Modifier.height(28.dp))
         }
