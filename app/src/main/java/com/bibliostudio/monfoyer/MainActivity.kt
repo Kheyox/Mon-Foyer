@@ -78,6 +78,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -119,7 +120,7 @@ data class ShoppingItem(val id: String = "", val name: String = "", val done: Bo
 data class Bill(val id: String = "", val label: String = "", val amount: Double = 0.0, val paid: Boolean = false)
 data class Event(val id: String = "", val title: String = "", val owner: String = "", val date: String = "")
 data class Note(val id: String = "", val title: String = "", val body: String = "")
-data class HouseholdTask(val id: String = "", val title: String = "", val assigneeId: String = "", val assigneeName: String = "", val done: Boolean = false, val color: Long = 0xFF174C43)
+data class HouseholdTask(val id: String = "", val title: String = "", val assigneeId: String = "", val assigneeName: String = "", val done: Boolean = false, val color: Long = 0xFF174C43, val description: String = "", val dueDate: String = "", val emoji: String = "🙂")
 data class Birthday(val id: String = "", val name: String = "", val date: String = "", val birthYear: Int = 0)
 
 data class AppUiState(
@@ -270,12 +271,15 @@ class MonFoyerViewModel : ViewModel() {
         add("events", mapOf("title" to title, "owner" to owner, "date" to date))
     }
     fun addNote(title: String, body: String) = add("notes", mapOf("title" to title, "body" to body))
-    fun addTask(title: String, member: Member?) {
+    fun addTask(title: String, description: String, dueDate: String, emoji: String, member: Member?) {
         if (title.isBlank()) return
         add(
             "tasks",
             mapOf(
                 "title" to title,
+                "description" to description,
+                "dueDate" to dueDate,
+                "emoji" to emoji,
                 "assigneeId" to (member?.id ?: ""),
                 "assigneeName" to (member?.name ?: "A assigner"),
                 "color" to memberColorLong(member?.id ?: title),
@@ -382,7 +386,10 @@ class MonFoyerViewModel : ViewModel() {
                     assigneeId = it.getString("assigneeId") ?: "",
                     assigneeName = it.getString("assigneeName") ?: "",
                     done = it.getBoolean("done") ?: false,
-                    color = it.getLong("color") ?: 0xFF174C43
+                    color = it.getLong("color") ?: 0xFF174C43,
+                    description = it.getString("description") ?: "",
+                    dueDate = it.getString("dueDate") ?: "",
+                    emoji = it.getString("emoji") ?: "🙂"
                 )
             }.orEmpty())
         }
@@ -796,42 +803,33 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
 
 @Composable
 fun TasksScreen(vm: MonFoyerViewModel) {
-    var title by remember { mutableStateOf("") }
-    var selectedMemberId by remember(vm.state.members) { mutableStateOf(vm.state.members.firstOrNull()?.id.orEmpty()) }
-    val selectedMember = vm.state.members.firstOrNull { it.id == selectedMemberId }
+    var showAddSheet by remember { mutableStateOf(false) }
     ModulePanel(title = "Taches") {
         item {
-            SoftInput(value = title, onValueChange = { title = it }, label = "Nouvelle tache")
-            Spacer(Modifier.height(10.dp))
-            MemberPicker(
-                members = vm.state.members,
-                selectedMemberId = selectedMemberId,
-                onSelect = { selectedMemberId = it }
-            )
-            Spacer(Modifier.height(10.dp))
-            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
-                vm.addTask(title, selectedMember)
-                title = ""
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Spacer(Modifier.weight(1f))
+                RoundIconButton(icon = Icons.Filled.Search, tint = Muted, onClick = {})
+                Spacer(Modifier.width(10.dp))
+                Surface(color = DeepGreen, shape = CircleShape, modifier = Modifier.size(54.dp).clickable { showAddSheet = true }) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Add, contentDescription = "Ajouter", tint = Color.White, modifier = Modifier.size(32.dp))
+                    }
+                }
             }
         }
         items(vm.state.tasks) { task ->
-            ListRow {
-                val color = Color(task.color)
-                Surface(color = color.copy(alpha = 0.14f), shape = CircleShape, modifier = Modifier.size(50.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        IconButton(onClick = { vm.toggleTask(task) }) {
-                            Icon(if (task.done) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Etat", tint = color, modifier = Modifier.size(32.dp))
-                        }
-                    }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(task.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
-                    Text(task.assigneeName.ifBlank { "A assigner" }, fontSize = 16.sp, color = color, fontWeight = FontWeight.SemiBold)
-                }
-                DeleteButton { vm.delete("tasks", task.id) }
-            }
+            TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onDelete = { vm.delete("tasks", task.id) })
         }
+    }
+    if (showAddSheet) {
+        AddTaskSheet(
+            members = vm.state.members,
+            onDismiss = { showAddSheet = false },
+            onAdd = { title, description, dueDate, emoji, member ->
+                vm.addTask(title, description, dueDate, emoji, member)
+                showAddSheet = false
+            }
+        )
     }
 }
 
@@ -1125,6 +1123,172 @@ fun BirthdayRow(birthday: Birthday, onDelete: () -> Unit) {
 }
 
 @Composable
+fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onDelete: () -> Unit) {
+    val color = Color(task.color)
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(22.dp),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+                Text(task.title, fontSize = 24.sp, lineHeight = 27.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(2.dp, if (task.done) DeepGreen else Color(0xFFE0E0E0)),
+                    modifier = Modifier.size(48.dp).clickable(onClick = onToggle)
+                ) {
+                    if (task.done) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = DeepGreen)
+                        }
+                    }
+                }
+            }
+            if (task.description.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(task.description, color = Muted, fontSize = 15.sp)
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = color.copy(alpha = 0.78f), shape = CircleShape, modifier = Modifier.size(50.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(task.assigneeName.firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
+                Text(task.emoji, fontSize = 24.sp)
+                Spacer(Modifier.width(10.dp))
+                Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = Color(0xFFF0A000), modifier = Modifier.size(23.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(task.dueDate.taskDueLabel(), color = Color(0xFFF0A000), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text("⋮⋮", color = Color(0xFFB9B9B9), fontSize = 25.sp, fontWeight = FontWeight.Black)
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Supprimer", tint = Muted)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddTaskSheet(members: List<Member>, onDismiss: () -> Unit, onAdd: (String, String, String, String, Member?) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var emoji by remember { mutableStateOf("🙂") }
+    var showEmojiPicker by remember { mutableStateOf(false) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now().plusDays(1)) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var selectedMemberId by remember(members) { mutableStateOf(members.firstOrNull()?.id.orEmpty()) }
+    val selectedMember = members.firstOrNull { it.id == selectedMemberId }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 22.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Nouvelle tache", fontSize = 31.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Fermer", tint = DeepGreen, modifier = Modifier.size(34.dp)) }
+            }
+            Spacer(Modifier.height(18.dp))
+            Text("Nom de la tache", fontSize = 21.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)),
+                    modifier = Modifier.size(66.dp).clickable { showEmojiPicker = true }
+                ) {
+                    Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 28.sp) }
+                }
+                SoftInput(value = title, onValueChange = { title = it }, label = "Saisir le nom de la tache", modifier = Modifier.weight(1f))
+            }
+            if (showEmojiPicker) {
+                Spacer(Modifier.height(10.dp))
+                EmojiPicker(selected = emoji, onSelect = {
+                    emoji = it
+                    showEmojiPicker = false
+                })
+            }
+            Spacer(Modifier.height(22.dp))
+            Text("Description", fontSize = 21.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            SoftInput(value = description, onValueChange = { description = it }, label = "Ajouter une description (optionnel)", minLines = 3)
+            Spacer(Modifier.height(22.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text("Echeance", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
+                    Spacer(Modifier.height(10.dp))
+                    CompactField(text = selectedDate.taskDueLabel(), icon = Icons.Filled.CalendarMonth) { showDatePicker = true }
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Assigner a", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
+                    Spacer(Modifier.height(10.dp))
+                    CompactField(text = selectedMember?.name ?: "Personne", icon = Icons.Filled.Person) {
+                        val index = members.indexOfFirst { it.id == selectedMemberId }
+                        selectedMemberId = members.getOrNull(index + 1)?.id ?: members.firstOrNull()?.id.orEmpty()
+                    }
+                }
+            }
+            Spacer(Modifier.height(96.dp))
+            PrimaryButton(text = "Ajouter", icon = Icons.Filled.CheckCircle) {
+                onAdd(title, description, selectedDate.format(DateTimeFormatter.ISO_DATE), emoji, selectedMember)
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+    if (showDatePicker) {
+        BirthdayDateSheet(
+            initialDate = selectedDate,
+            onDismiss = { showDatePicker = false },
+            onConfirm = {
+                selectedDate = it
+                showDatePicker = false
+            }
+        )
+    }
+}
+
+@Composable
+fun EmojiPicker(selected: String, onSelect: (String) -> Unit) {
+    val emojis = listOf("🙂", "🏠", "🛒", "📞", "🧹", "🍽", "💸", "📦", "🎂", "📝")
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        emojis.forEach { item ->
+            Surface(
+                color = if (item == selected) DeepGreen.copy(alpha = 0.14f) else SoftGrey,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(44.dp).clickable { onSelect(item) }
+            ) {
+                Box(contentAlignment = Alignment.Center) { Text(item, fontSize = 22.sp) }
+            }
+        }
+    }
+}
+
+@Composable
+fun CompactField(text: String, icon: ImageVector, onClick: () -> Unit) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)),
+        modifier = Modifier.fillMaxWidth().height(66.dp).clickable(onClick = onClick)
+    ) {
+        Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, color = Muted, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(icon, contentDescription = null, tint = Muted, modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+@Composable
 fun ConfirmDeleteDialog(title: String, message: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1176,14 +1340,6 @@ fun AddBirthdaySheet(onDismiss: () -> Unit, onAdd: (String, LocalDate, String) -
                 Text("Ajouter une personne", fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Filled.Close, contentDescription = "Fermer", tint = Ink, modifier = Modifier.size(34.dp))
-                }
-            }
-            Spacer(Modifier.height(28.dp))
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Surface(color = SoftGrey, shape = CircleShape, modifier = Modifier.size(132.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Person, contentDescription = null, tint = Muted, modifier = Modifier.size(68.dp))
-                    }
                 }
             }
             Spacer(Modifier.height(34.dp))
@@ -1369,6 +1525,19 @@ fun Birthday.nextBirthday(): LocalDate {
     val thisYear = runCatching { LocalDate.of(now.year, value.month, value.dayOfMonth) }.getOrDefault(now)
     return if (thisYear.isBefore(now)) thisYear.plusYears(1) else thisYear
 }
+
+fun String.taskDueLabel(): String {
+    val date = runCatching { LocalDate.parse(this) }.getOrNull() ?: return "Sans date"
+    val today = LocalDate.now()
+    return when (date) {
+        today -> "Aujourd'hui"
+        today.plusDays(1) -> "Demain"
+        today.minusDays(1) -> "Hier"
+        else -> date.format(DateTimeFormatter.ofPattern("d MMM", Locale.FRANCE))
+    }
+}
+
+fun LocalDate.taskDueLabel(): String = format(DateTimeFormatter.ISO_DATE).taskDueLabel()
 
 @Composable
 fun SoftInput(
