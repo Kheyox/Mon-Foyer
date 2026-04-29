@@ -35,7 +35,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Group
@@ -45,7 +47,10 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,12 +62,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -810,50 +817,32 @@ fun TasksScreen(vm: MonFoyerViewModel) {
 
 @Composable
 fun BirthdaysScreen(vm: MonFoyerViewModel) {
-    var name by remember { mutableStateOf("") }
-    var birthYear by remember { mutableStateOf("") }
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var visibleMonth by remember { mutableStateOf(YearMonth.from(selectedDate)) }
+    var showAddSheet by remember { mutableStateOf(false) }
     ModulePanel(title = "Anniversaires") {
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                RoundIconButton(icon = Icons.Filled.CalendarMonth, tint = Muted, onClick = {})
-                RoundIconButton(icon = Icons.Filled.Add, tint = DeepGreen, onClick = {})
-            }
-            Spacer(Modifier.height(16.dp))
-            CalendarMonthView(
-                month = visibleMonth,
-                selectedDate = selectedDate,
-                events = vm.state.birthdays.mapNotNull { it.markerEvent(visibleMonth.year) },
-                onPrevious = {
-                    visibleMonth = visibleMonth.minusMonths(1)
-                    selectedDate = visibleMonth.atDay(1)
-                },
-                onNext = {
-                    visibleMonth = visibleMonth.plusMonths(1)
-                    selectedDate = visibleMonth.atDay(1)
-                },
-                onDateSelected = {
-                    selectedDate = it
-                    visibleMonth = YearMonth.from(it)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Spacer(Modifier.weight(1f))
+                RoundIconButton(icon = Icons.Filled.ViewList, tint = Muted, onClick = {})
+                RoundIconButton(icon = Icons.Filled.Search, tint = Muted, onClick = {})
+                Surface(color = DeepGreen, shape = CircleShape, modifier = Modifier.size(54.dp).clickable { showAddSheet = true }) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Add, contentDescription = "Ajouter", tint = Color.White, modifier = Modifier.size(32.dp))
+                    }
                 }
-            )
-            Spacer(Modifier.height(12.dp))
-            SoftInput(value = name, onValueChange = { name = it }, label = "Prenom")
-            Spacer(Modifier.height(10.dp))
-            SoftInput(value = birthYear, onValueChange = { birthYear = it }, label = "Annee de naissance", keyboardType = KeyboardType.Number)
-            Spacer(Modifier.height(10.dp))
-            DateChip(selectedDate)
-            Spacer(Modifier.height(10.dp))
-            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
-                vm.addBirthday(name, selectedDate, birthYear)
-                name = ""
-                birthYear = ""
             }
         }
         items(vm.state.birthdays.sortedBy { it.nextBirthday() }) { birthday ->
             BirthdayRow(birthday) { vm.delete("birthdays", birthday.id) }
         }
+    }
+    if (showAddSheet) {
+        AddBirthdaySheet(
+            onDismiss = { showAddSheet = false },
+            onAdd = { name, date, year ->
+                vm.addBirthday(name, date, year)
+                showAddSheet = false
+            }
+        )
     }
 }
 
@@ -1103,6 +1092,213 @@ fun BirthdayRow(birthday: Birthday, onDelete: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddBirthdaySheet(onDismiss: () -> Unit, onAdd: (String, LocalDate, String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var showDateSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+        dragHandle = {
+            Box(
+                Modifier.padding(top = 14.dp).width(70.dp).height(6.dp)
+                    .clip(RoundedCornerShape(50)).background(Color(0xFF9B9B9B))
+            )
+        }
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Ajouter une personne", fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Fermer", tint = Ink, modifier = Modifier.size(34.dp))
+                }
+            }
+            Spacer(Modifier.height(28.dp))
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Surface(color = SoftGrey, shape = CircleShape, modifier = Modifier.size(132.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Person, contentDescription = null, tint = Muted, modifier = Modifier.size(68.dp))
+                    }
+                }
+                Surface(
+                    color = DeepGreen,
+                    shape = CircleShape,
+                    modifier = Modifier.offset(x = 48.dp, y = 46.dp).size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(23.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(34.dp))
+            Text("Nom", fontSize = 24.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            SoftInput(value = name, onValueChange = { name = it }, label = "Entre le nom de la personne", leadingIcon = Icons.Filled.Person)
+            Spacer(Modifier.height(26.dp))
+            Text("Date de naissance", fontSize = 24.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            DateField(selectedDate, onClick = { showDateSheet = true })
+            Spacer(Modifier.height(34.dp))
+            val canAdd = name.isNotBlank()
+            Button(
+                onClick = { onAdd(name, selectedDate, selectedDate.year.toString()) },
+                enabled = canAdd,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DeepGreen,
+                    disabledContainerColor = Color(0xFFE1E1E1),
+                    disabledContentColor = Muted
+                ),
+                modifier = Modifier.fillMaxWidth().height(66.dp)
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("Ajouter", fontSize = 22.sp, fontWeight = FontWeight.Black)
+            }
+            Spacer(Modifier.height(28.dp))
+        }
+    }
+    if (showDateSheet) {
+        BirthdayDateSheet(
+            initialDate = selectedDate,
+            onDismiss = { showDateSheet = false },
+            onConfirm = {
+                selectedDate = it
+                showDateSheet = false
+            }
+        )
+    }
+}
+
+@Composable
+fun DateField(date: LocalDate, onClick: () -> Unit) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFD9D9D9)),
+        modifier = Modifier.fillMaxWidth().height(72.dp).clickable(onClick = onClick)
+    ) {
+        Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                date.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRANCE)),
+                color = Muted,
+                fontSize = 21.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = Muted, modifier = Modifier.size(30.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BirthdayDateSheet(initialDate: LocalDate, onDismiss: () -> Unit, onConfirm: (LocalDate) -> Unit) {
+    var day by remember { mutableStateOf(initialDate.dayOfMonth) }
+    var month by remember { mutableStateOf(initialDate.monthValue) }
+    var year by remember { mutableStateOf(initialDate.year) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val maxDay = YearMonth.of(year, month).lengthOfMonth()
+    if (day > maxDay) day = maxDay
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
+        dragHandle = {
+            Box(
+                Modifier.padding(top = 14.dp).width(70.dp).height(6.dp)
+                    .clip(RoundedCornerShape(50)).background(Color(0xFF9B9B9B))
+            )
+        }
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Selectionner la date", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                Text(
+                    "OK",
+                    color = DeepGreen,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.clickable { onConfirm(LocalDate.of(year, month, day)) }.padding(12.dp)
+                )
+            }
+            Spacer(Modifier.height(34.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                PickerColumn(
+                    values = (1..maxDay).toList(),
+                    selected = day,
+                    label = { it.toString() },
+                    onSelect = { day = it },
+                    modifier = Modifier.weight(0.8f)
+                )
+                PickerColumn(
+                    values = (1..12).toList(),
+                    selected = month,
+                    label = { LocalDate.of(2026, it, 1).month.getDisplayName(TextStyle.FULL, Locale.FRANCE).replaceFirstChar { char -> char.titlecase(Locale.FRANCE) } },
+                    onSelect = { month = it },
+                    modifier = Modifier.weight(1.7f)
+                )
+                PickerColumn(
+                    values = (LocalDate.now().year downTo 1920).toList(),
+                    selected = year,
+                    label = { it.toString() },
+                    onSelect = { year = it },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(40.dp))
+        }
+    }
+}
+
+@Composable
+fun <T> PickerColumn(
+    values: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val selectedIndex = values.indexOf(selected).coerceAtLeast(0)
+    val visible = buildList {
+        add(values.getOrNull(selectedIndex - 2))
+        add(values.getOrNull(selectedIndex - 1))
+        add(values.getOrNull(selectedIndex))
+        add(values.getOrNull(selectedIndex + 1))
+        add(values.getOrNull(selectedIndex + 2))
+    }
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        visible.forEach { value ->
+            if (value == null) {
+                Spacer(Modifier.height(44.dp))
+            } else {
+                val isSelected = value == selected
+                Surface(
+                    color = if (isSelected) SoftGrey else Color.Transparent,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp).clickable { onSelect(value) }
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            label(value),
+                            fontSize = if (isSelected) 26.sp else 22.sp,
+                            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                            color = if (isSelected) Ink else Muted
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 fun memberColorLong(seed: String): Long {
     val palette = listOf(0xFF174C43, 0xFFE86675, 0xFFE8A64F, 0xFF5C8EE6, 0xFF8A6FDF, 0xFF2F9C95)
     return palette[(seed.hashCode().absoluteValue) % palette.size]
@@ -1130,12 +1326,16 @@ fun SoftInput(
     label: String,
     modifier: Modifier = Modifier.fillMaxWidth(),
     keyboardType: KeyboardType = KeyboardType.Text,
-    minLines: Int = 1
+    minLines: Int = 1,
+    leadingIcon: ImageVector? = null
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         placeholder = { Text(label, color = Muted, fontSize = 18.sp) },
+        leadingIcon = leadingIcon?.let { icon ->
+            { Icon(icon, contentDescription = null, tint = Muted) }
+        },
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         minLines = minLines,
         shape = RoundedCornerShape(18.dp),
