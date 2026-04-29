@@ -42,12 +42,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.ViewList
@@ -118,7 +120,21 @@ data class Household(val id: String = "", val name: String = "Mon foyer", val in
 data class Member(val id: String = "", val name: String = "", val email: String = "")
 data class ShoppingItem(val id: String = "", val name: String = "", val done: Boolean = false)
 data class Bill(val id: String = "", val label: String = "", val amount: Double = 0.0, val paid: Boolean = false)
-data class Event(val id: String = "", val title: String = "", val owner: String = "", val date: String = "")
+data class Event(
+    val id: String = "",
+    val title: String = "",
+    val owner: String = "",
+    val date: String = "",
+    val description: String = "",
+    val location: String = "",
+    val typeName: String = "Repas",
+    val typeIcon: String = "🍴",
+    val typeColor: Long = 0xFFE86675,
+    val allDay: Boolean = false,
+    val time: String = "00:00",
+    val recurrence: String = "Aucune"
+)
+data class EventType(val id: String = "", val name: String = "", val icon: String = "🍴", val color: Long = 0xFFE86675)
 data class Note(val id: String = "", val title: String = "", val body: String = "")
 data class HouseholdTask(val id: String = "", val title: String = "", val assigneeId: String = "", val assigneeName: String = "", val done: Boolean = false, val color: Long = 0xFF174C43, val description: String = "", val dueDate: String = "", val emoji: String = "🙂")
 data class Birthday(val id: String = "", val name: String = "", val date: String = "", val birthYear: Int = 0)
@@ -131,6 +147,7 @@ data class AppUiState(
     val shopping: List<ShoppingItem> = emptyList(),
     val bills: List<Bill> = emptyList(),
     val events: List<Event> = emptyList(),
+    val eventTypes: List<EventType> = emptyList(),
     val notes: List<Note> = emptyList(),
     val tasks: List<HouseholdTask> = emptyList(),
     val birthdays: List<Birthday> = emptyList(),
@@ -266,9 +283,38 @@ class MonFoyerViewModel : ViewModel() {
 
     fun addShoppingItem(name: String) = add("shoppingItems", mapOf("name" to name, "done" to false))
     fun addBill(label: String, amount: String) = add("bills", mapOf("label" to label, "amount" to (amount.toDoubleOrNull() ?: 0.0), "paid" to false))
-    fun addEvent(title: String, owner: String, date: String) {
+    fun addEvent(
+        title: String,
+        description: String,
+        location: String,
+        owner: String,
+        date: String,
+        time: String,
+        allDay: Boolean,
+        recurrence: String,
+        type: EventType
+    ) {
         if (title.isBlank()) return
-        add("events", mapOf("title" to title, "owner" to owner, "date" to date))
+        add(
+            "events",
+            mapOf(
+                "title" to title,
+                "description" to description,
+                "location" to location,
+                "owner" to owner,
+                "date" to date,
+                "time" to time,
+                "allDay" to allDay,
+                "recurrence" to recurrence,
+                "typeName" to type.name,
+                "typeIcon" to type.icon,
+                "typeColor" to type.color
+            )
+        )
+    }
+    fun addEventType(name: String, icon: String, color: Long) {
+        if (name.isBlank()) return
+        add("eventTypes", mapOf("name" to name, "icon" to icon, "color" to color))
     }
     fun addNote(title: String, body: String) = add("notes", mapOf("title" to title, "body" to body))
     fun addTask(title: String, description: String, dueDate: String, emoji: String, member: Member?) {
@@ -373,7 +419,33 @@ class MonFoyerViewModel : ViewModel() {
             state = state.copy(bills = snap?.documents?.map { Bill(it.id, it.getString("label") ?: "", it.getDouble("amount") ?: 0.0, it.getBoolean("paid") ?: false) }.orEmpty())
         }
         listeners += householdRef.collection("events").addSnapshotListener { snap, _ ->
-            state = state.copy(events = snap?.documents?.map { Event(it.id, it.getString("title") ?: "", it.getString("owner") ?: "", it.getString("date") ?: "") }.orEmpty())
+            state = state.copy(events = snap?.documents?.map {
+                Event(
+                    id = it.id,
+                    title = it.getString("title") ?: "",
+                    owner = it.getString("owner") ?: "",
+                    date = it.getString("date") ?: "",
+                    description = it.getString("description") ?: "",
+                    location = it.getString("location") ?: "",
+                    typeName = it.getString("typeName") ?: "Repas",
+                    typeIcon = it.getString("typeIcon") ?: "🍴",
+                    typeColor = it.getLong("typeColor") ?: 0xFFE86675,
+                    allDay = it.getBoolean("allDay") ?: false,
+                    time = it.getString("time") ?: "00:00",
+                    recurrence = it.getString("recurrence") ?: "Aucune"
+                )
+            }.orEmpty())
+        }
+        listeners += householdRef.collection("eventTypes").addSnapshotListener { snap, _ ->
+            val savedTypes = snap?.documents?.map {
+                EventType(
+                    id = it.id,
+                    name = it.getString("name") ?: "",
+                    icon = it.getString("icon") ?: "🍴",
+                    color = it.getLong("color") ?: 0xFFE86675
+                )
+            }.orEmpty()
+            state = state.copy(eventTypes = defaultEventTypes() + savedTypes)
         }
         listeners += householdRef.collection("notes").addSnapshotListener { snap, _ ->
             state = state.copy(notes = snap?.documents?.map { Note(it.id, it.getString("title") ?: "", it.getString("body") ?: "") }.orEmpty())
@@ -737,15 +809,23 @@ fun BudgetScreen(vm: MonFoyerViewModel) {
 
 @Composable
 fun AgendaScreen(vm: MonFoyerViewModel) {
-    var title by remember { mutableStateOf("") }
+    var showAddSheet by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var visibleMonth by remember { mutableStateOf(YearMonth.from(selectedDate)) }
-    var selectedMemberId by remember(vm.state.members) { mutableStateOf(vm.state.members.firstOrNull()?.id.orEmpty()) }
-    val selectedMember = vm.state.members.firstOrNull { it.id == selectedMemberId }
     val selectedDateText = selectedDate.format(DateTimeFormatter.ISO_DATE)
     val selectedEvents = vm.state.events.filter { it.date == selectedDateText }
     ModulePanel(title = "Calendrier") {
         item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Spacer(Modifier.weight(1f))
+                RoundIconButton(icon = Icons.Filled.Search, tint = Muted, onClick = {})
+                Surface(color = DeepGreen, shape = CircleShape, modifier = Modifier.size(54.dp).clickable { showAddSheet = true }) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Add, contentDescription = "Ajouter", tint = Color.White, modifier = Modifier.size(32.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
             CalendarMonthView(
                 month = visibleMonth,
                 selectedDate = selectedDate,
@@ -773,30 +853,31 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
                 }
             }
             Spacer(Modifier.height(12.dp))
-            SoftInput(value = title, onValueChange = { title = it }, label = "Nom de l'evenement")
-            Spacer(Modifier.height(10.dp))
-            MemberPicker(
-                members = vm.state.members,
-                selectedMemberId = selectedMemberId,
-                onSelect = { selectedMemberId = it }
-            )
-            Spacer(Modifier.height(10.dp))
-            DateChip(selectedDate)
-            Spacer(Modifier.height(10.dp))
-            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
-                vm.addEvent(title, selectedMember?.name ?: "Tout le foyer", selectedDateText)
-                title = ""
-            }
         }
         items(vm.state.events) { event ->
             ListRow {
                 Column(Modifier.weight(1f)) {
                     Text(event.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
-                    Text(listOf(event.date, event.owner).filter { it.isNotBlank() }.joinToString(" - "), fontSize = 16.sp, color = Muted)
+                    Text(listOf(event.date, if (event.allDay) "Toute la journee" else event.time, event.owner).filter { it.isNotBlank() }.joinToString(" - "), fontSize = 16.sp, color = Muted)
                 }
                 DeleteButton { vm.delete("events", event.id) }
             }
         }
+    }
+    if (showAddSheet) {
+        AddEventSheet(
+            members = vm.state.members,
+            eventTypes = vm.state.eventTypes.ifEmpty { defaultEventTypes() },
+            initialDate = selectedDate,
+            onDismiss = { showAddSheet = false },
+            onAddType = { name, icon, color -> vm.addEventType(name, icon, color) },
+            onAdd = { title, description, location, owner, date, time, allDay, recurrence, type ->
+                vm.addEvent(title, description, location, owner, date.format(DateTimeFormatter.ISO_DATE), time, allDay, recurrence, type)
+                selectedDate = date
+                visibleMonth = YearMonth.from(date)
+                showAddSheet = false
+            }
+        )
     }
 }
 
@@ -1034,13 +1115,13 @@ fun CalendarMonthView(
 
 @Composable
 fun CalendarEventPill(event: Event) {
-    Surface(color = DeepGreen.copy(alpha = 0.09f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(event.typeColor).copy(alpha = 0.12f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(10.dp).clip(CircleShape).background(DeepGreen))
+            Text(event.typeIcon, fontSize = 22.sp)
             Spacer(Modifier.width(10.dp))
             Column {
                 Text(event.title, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Ink)
-                Text(event.owner.ifBlank { "Tout le foyer" }, fontSize = 14.sp, color = DeepGreen, fontWeight = FontWeight.SemiBold)
+                Text(listOf(event.typeName, if (event.allDay) "Toute la journee" else event.time, event.owner.ifBlank { "Tout le foyer" }).joinToString(" - "), fontSize = 14.sp, color = Color(event.typeColor), fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -1395,6 +1476,317 @@ fun TaskDateGrid(month: YearMonth, selectedDate: LocalDate, onDateSelected: (Loc
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddEventSheet(
+    members: List<Member>,
+    eventTypes: List<EventType>,
+    initialDate: LocalDate,
+    onDismiss: () -> Unit,
+    onAddType: (String, String, Long) -> Unit,
+    onAdd: (String, String, String, String, LocalDate, String, Boolean, String, EventType) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+    var selectedMemberIds by remember(members) { mutableStateOf(members.map { it.id }.toSet()) }
+    var selectedType by remember(eventTypes) { mutableStateOf(eventTypes.firstOrNull() ?: defaultEventTypes().first()) }
+    var showTypeSheet by remember { mutableStateOf(false) }
+    var selectedDate by remember { mutableStateOf(initialDate) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var time by remember { mutableStateOf("00:00") }
+    var allDay by remember { mutableStateOf(false) }
+    var recurrence by remember { mutableStateOf("Aucune") }
+    var showRecurrence by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val owner = members.filter { it.id in selectedMemberIds }.joinToString(", ") { it.name.ifBlank { "Membre" } }.ifBlank { "Tout le foyer" }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+    ) {
+        LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 22.dp)) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("Nouvel evenement", fontSize = 31.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Fermer", tint = DeepGreen, modifier = Modifier.size(34.dp)) }
+                }
+                Spacer(Modifier.height(18.dp))
+                FieldLabel("Titre")
+                SoftInput(title, { title = it }, "Nom de l'evenement")
+                Spacer(Modifier.height(20.dp))
+                FieldLabel("Description")
+                SoftInput(description, { description = it }, "Description (optionnel)", minLines = 3)
+                Spacer(Modifier.height(20.dp))
+                FieldLabel("Lieu")
+                SoftInput(location, { location = it }, "Adresse ou lieu (optionnel)", leadingIcon = Icons.Filled.LocationOn)
+                Spacer(Modifier.height(20.dp))
+                FieldLabel("Participants")
+                ParticipantsField(members, selectedMemberIds) { selectedMemberIds = it }
+                Spacer(Modifier.height(20.dp))
+                FieldLabel("Type d'evenement")
+                EventTypeField(selectedType) { showTypeSheet = true }
+                Spacer(Modifier.height(20.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        FieldLabel("Toute la journee")
+                        Text("L'evenement a lieu sur la journee complete", color = Muted, fontSize = 16.sp)
+                    }
+                    androidx.compose.material3.Switch(checked = allDay, onCheckedChange = { allDay = it })
+                }
+                Spacer(Modifier.height(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        FieldLabel("Date")
+                        CompactField(selectedDate.format(DateTimeFormatter.ofPattern("d/M/yyyy", Locale.FRANCE)), Icons.Filled.CalendarMonth) { showDatePicker = true }
+                    }
+                    Column(Modifier.weight(1f)) {
+                        FieldLabel("Heure")
+                        CompactField(time, Icons.Filled.CalendarMonth) { time = nextTimeValue(time) }
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+                FieldLabel("Recurrence")
+                RecurrenceField(recurrence) { showRecurrence = !showRecurrence }
+                if (showRecurrence) {
+                    Spacer(Modifier.height(10.dp))
+                    RecurrencePicker(recurrence) {
+                        recurrence = it
+                        showRecurrence = false
+                    }
+                }
+                Spacer(Modifier.height(34.dp))
+                PrimaryButton("Ajouter", Icons.Filled.CheckCircle) {
+                    onAdd(title, description, location, owner, selectedDate, time, allDay, recurrence, selectedType)
+                }
+                Spacer(Modifier.height(28.dp))
+            }
+        }
+    }
+    if (showDatePicker) {
+        TaskDateDialog(initialDate = selectedDate, onDismiss = { showDatePicker = false }) {
+            selectedDate = it
+            showDatePicker = false
+        }
+    }
+    if (showTypeSheet) {
+        EventTypeSheet(
+            types = eventTypes,
+            selected = selectedType,
+            onDismiss = { showTypeSheet = false },
+            onSelect = {
+                selectedType = it
+                showTypeSheet = false
+            },
+            onAddType = { name, icon, color ->
+                onAddType(name, icon, color)
+                selectedType = EventType(name = name, icon = icon, color = color)
+            }
+        )
+    }
+}
+
+@Composable
+fun FieldLabel(text: String) {
+    Text(text, fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+fun ParticipantsField(members: List<Member>, selectedIds: Set<String>, onChange: (Set<String>) -> Unit) {
+    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            if (members.isEmpty()) {
+                Text("Tout le foyer", color = Muted, fontSize = 18.sp)
+            } else {
+                members.forEach { member ->
+                    val selected = member.id in selectedIds
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
+                        onChange(if (selected) selectedIds - member.id else selectedIds + member.id)
+                    }.padding(vertical = 8.dp)) {
+                        Icon(if (selected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = null, tint = if (selected) DeepGreen else Muted)
+                        Spacer(Modifier.width(10.dp))
+                        Text(member.name.ifBlank { "Membre" }, fontSize = 18.sp, color = Ink)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EventTypeField(type: EventType, onClick: () -> Unit) {
+    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)), modifier = Modifier.fillMaxWidth().height(66.dp).clickable(onClick = onClick)) {
+        Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(type.icon, fontSize = 25.sp)
+            Spacer(Modifier.width(12.dp))
+            Text(type.name, fontSize = 20.sp, color = Ink, modifier = Modifier.weight(1f))
+            Text("×", color = Muted, fontSize = 28.sp)
+        }
+    }
+}
+
+@Composable
+fun RecurrenceField(value: String, onClick: () -> Unit) {
+    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Repeat, contentDescription = null, tint = Muted)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Recurrence", fontSize = 19.sp, fontWeight = FontWeight.Black, color = Ink)
+                Text(value, color = Muted, fontSize = 17.sp)
+            }
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Muted)
+        }
+    }
+}
+
+@Composable
+fun RecurrencePicker(selected: String, onSelect: (String) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        listOf("Aucune", "Chaque jour", "Chaque semaine", "Chaque mois").forEach { value ->
+            MemberChip(label = value, selected = selected == value, color = DeepGreen) { onSelect(value) }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EventTypeSheet(types: List<EventType>, selected: EventType, onDismiss: () -> Unit, onSelect: (EventType) -> Unit, onAddType: (String, String, Long) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var showNewType by remember { mutableStateOf(false) }
+    val visibleTypes = types.filter { it.name.contains(query, ignoreCase = true) }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White, shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)) {
+        Column(Modifier.fillMaxWidth().padding(28.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Type d'evenement", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = null, tint = DeepGreen) }
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                SoftInput(query, { query = it }, "Rechercher un type ...", leadingIcon = Icons.Filled.Search, modifier = Modifier.weight(1f))
+                Surface(color = DeepGreen, shape = RoundedCornerShape(12.dp), modifier = Modifier.size(62.dp).clickable { showNewType = true }) {
+                    Box(contentAlignment = Alignment.Center) { Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(34.dp)) }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            LazyVerticalGrid(columns = GridCells.Fixed(3), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.height(260.dp)) {
+                gridItems(visibleTypes) { type ->
+                    Surface(color = if (type.name == selected.name) Color(type.color) else SoftGrey, shape = RoundedCornerShape(16.dp), modifier = Modifier.height(88.dp).clickable { onSelect(type) }) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Text(type.icon, fontSize = 28.sp)
+                            Text(type.name, color = if (type.name == selected.name) Color.White else Ink, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (showNewType) {
+        NewEventTypeSheet(onDismiss = { showNewType = false }, onAdd = { name, icon, color ->
+            onAddType(name, icon, color)
+            showNewType = false
+        })
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NewEventTypeSheet(onDismiss: () -> Unit, onAdd: (String, String, Long) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var icon by remember { mutableStateOf("🍴") }
+    var color by remember { mutableStateOf(0xFF174C43) }
+    var showIcons by remember { mutableStateOf(false) }
+    var showColors by remember { mutableStateOf(false) }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White, shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)) {
+        Column(Modifier.fillMaxWidth().padding(28.dp)) {
+            Text("Nouveau type", fontSize = 32.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(26.dp))
+            FieldLabel("Nom du type")
+            SoftInput(name, { name = it }, "Ex: Medical, Ecole, Loisirs...")
+            Spacer(Modifier.height(22.dp))
+            FieldLabel("Icone du type")
+            CompactTextField("$icon  Choisir une icone") { showIcons = true }
+            Spacer(Modifier.height(22.dp))
+            FieldLabel("Couleur du type")
+            CompactTextField("●  Choisir une couleur", Color(color)) { showColors = true }
+            Spacer(Modifier.height(34.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Annuler", color = Muted, fontSize = 19.sp, modifier = Modifier.clickable(onClick = onDismiss).padding(12.dp))
+                Spacer(Modifier.weight(1f))
+                Button(onClick = { onAdd(name, icon, color) }, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = DeepGreen), modifier = Modifier.width(180.dp).height(58.dp)) {
+                    Text("Ajouter", fontSize = 19.sp, fontWeight = FontWeight.Black)
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+    }
+    if (showIcons) {
+        IconBankSheet(onDismiss = { showIcons = false }, onSelect = {
+            icon = it
+            showIcons = false
+        })
+    }
+    if (showColors) {
+        ColorBankSheet(onDismiss = { showColors = false }, onSelect = {
+            color = it
+            showColors = false
+        })
+    }
+}
+
+@Composable
+fun CompactTextField(text: String, tint: Color = Muted, onClick: () -> Unit) {
+    Surface(color = Color.White, shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFE3E3E0)), modifier = Modifier.fillMaxWidth().height(64.dp).clickable(onClick = onClick)) {
+        Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, color = tint, fontSize = 19.sp, modifier = Modifier.weight(1f))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Muted)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IconBankSheet(onDismiss: () -> Unit, onSelect: (String) -> Unit) {
+    val icons = listOf("🍎", "🥩", "🌾", "🍬", "🥕", "🍒", "🥐", "🥚", "🐟", "🍇", "🍪", "🍉", "🥛", "🍕", "🥤", "🥗", "🍗", "🥪", "🍜", "🍷", "🛒", "📦", "🎁", "🍴", "☕", "🎂", "🍌", "💧", "🏥", "🏫", "⚽", "🎬")
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White, shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)) {
+        Column(Modifier.fillMaxWidth().padding(28.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Choisir une icone", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = null, tint = Muted) }
+            }
+            Spacer(Modifier.height(20.dp))
+            LazyVerticalGrid(columns = GridCells.Fixed(4), verticalArrangement = Arrangement.spacedBy(22.dp), horizontalArrangement = Arrangement.spacedBy(22.dp), modifier = Modifier.height(430.dp)) {
+                gridItems(icons) { icon ->
+                    Surface(color = Color.White, shape = CircleShape, modifier = Modifier.size(58.dp).clickable { onSelect(icon) }) {
+                        Box(contentAlignment = Alignment.Center) { Text(icon, fontSize = 34.sp) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ColorBankSheet(onDismiss: () -> Unit, onSelect: (Long) -> Unit) {
+    val colors = listOf(0xFF174C43, 0xFFE86675, 0xFFE8A64F, 0xFF54B568, 0xFF5C8EE6, 0xFF8A6FDF, 0xFF2F9C95, 0xFF111111)
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White, shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)) {
+        Column(Modifier.fillMaxWidth().padding(28.dp)) {
+            Text("Choisir une couleur", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(24.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                colors.forEach { value ->
+                    Surface(color = Color(value), shape = CircleShape, modifier = Modifier.size(54.dp).clickable { onSelect(value) }) {}
+                }
+            }
+            Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
 @Composable
 fun ConfirmDeleteDialog(title: String, message: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
@@ -1619,6 +2011,22 @@ fun memberColorLong(seed: String): Long {
 }
 
 fun memberColor(seed: String): Color = Color(memberColorLong(seed))
+
+fun defaultEventTypes(): List<EventType> = listOf(
+    EventType(id = "meal", name = "Repas", icon = "🍴", color = 0xFFE86675),
+    EventType(id = "medical", name = "Medical", icon = "🏥", color = 0xFF54B568),
+    EventType(id = "school", name = "Ecole", icon = "🏫", color = 0xFF5C8EE6),
+    EventType(id = "leisure", name = "Loisirs", icon = "⚽", color = 0xFFE8A64F)
+)
+
+fun nextTimeValue(value: String): String {
+    val parts = value.split(":")
+    val hour = parts.getOrNull(0)?.toIntOrNull() ?: 0
+    val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+    val nextMinute = if (minute == 0) 30 else 0
+    val nextHour = if (minute == 0) hour else (hour + 1) % 24
+    return "%02d:%02d".format(nextHour, nextMinute)
+}
 
 fun Birthday.markerEvent(year: Int): Event? {
     val dateValue = runCatching { LocalDate.parse(date) }.getOrNull() ?: return null
