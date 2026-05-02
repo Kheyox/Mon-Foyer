@@ -1,7 +1,9 @@
 package com.bibliostudio.monfoyer
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -116,14 +118,20 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.URL
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.absoluteValue
+
+private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/Kheyox/Mon-Foyer-Releases/main/update.json"
 
 data class Household(val id: String = "", val name: String = "Mon foyer", val inviteCode: String = "", val ownerId: String = "")
 data class Member(val id: String = "", val name: String = "", val email: String = "", val role: String = "member", val color: Long = 0xFF174C43)
@@ -154,6 +162,12 @@ data class EventType(val id: String = "", val name: String = "", val icon: Strin
 data class Note(val id: String = "", val title: String = "", val body: String = "")
 data class HouseholdTask(val id: String = "", val title: String = "", val assigneeId: String = "", val assigneeName: String = "", val done: Boolean = false, val color: Long = 0xFF174C43, val description: String = "", val dueDate: String = "", val emoji: String = "🙂")
 data class Birthday(val id: String = "", val name: String = "", val date: String = "", val birthYear: Int = 0)
+data class UpdateInfo(
+    val versionCode: Int = 0,
+    val versionName: String = "",
+    val apkUrl: String = "",
+    val notes: String = ""
+)
 
 data class AppUiState(
     val signedIn: Boolean = false,
@@ -171,7 +185,9 @@ data class AppUiState(
     val monthlyBudget: Double = 0.0,
     val selectedTab: Tab = Tab.Home,
     val loading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val checkingUpdate: Boolean = false,
+    val updateInfo: UpdateInfo? = null
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {
@@ -249,6 +265,43 @@ class MonFoyerViewModel : ViewModel() {
 
     fun select(tab: Tab) {
         state = state.copy(selectedTab = tab)
+    }
+
+    fun checkForUpdate() {
+        if (state.checkingUpdate) return
+        state = state.copy(checkingUpdate = true, error = null)
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            runCatching {
+                val json = URL(UPDATE_MANIFEST_URL).readText()
+                val manifest = JSONObject(json)
+                UpdateInfo(
+                    versionCode = manifest.optInt("versionCode", 0),
+                    versionName = manifest.optString("versionName"),
+                    apkUrl = manifest.optString("apkUrl"),
+                    notes = manifest.optString("notes")
+                )
+            }.onSuccess { info ->
+                withContext(Dispatchers.Main) {
+                    val update = info.takeIf { it.versionCode > BuildConfig.VERSION_CODE && it.apkUrl.isNotBlank() }
+                    state = state.copy(
+                        checkingUpdate = false,
+                        updateInfo = update,
+                        error = if (update == null) "Mon Foyer est deja a jour." else null
+                    )
+                }
+            }.onFailure {
+                withContext(Dispatchers.Main) {
+                    state = state.copy(
+                        checkingUpdate = false,
+                        error = "Verification impossible. Le fichier de mise a jour doit etre public."
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearUpdateInfo() {
+        state = state.copy(updateInfo = null)
     }
 
     fun createHousehold(name: String) {
@@ -799,6 +852,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
                 householdName = vm.state.household?.name ?: "Mon Foyer",
                 onHome = { vm.select(Tab.Home) },
                 onSelect = { vm.select(it) },
+                onCheckUpdate = { vm.checkForUpdate() },
                 onSignOut = { vm.signOut(context) }
             )
             vm.state.error?.let { ErrorText(it, Modifier.padding(horizontal = 24.dp)) }
@@ -814,11 +868,24 @@ fun HomeShell(vm: MonFoyerViewModel) {
             }
         }
         FloatingHomeButton(visible = vm.state.selectedTab != Tab.Home, onClick = { vm.select(Tab.Home) })
+        vm.state.updateInfo?.let { update ->
+            UpdateAvailableDialog(
+                update = update,
+                onDismiss = { vm.clearUpdateInfo() }
+            )
+        }
     }
 }
 
 @Composable
-fun AppHeader(activeTab: Tab, householdName: String, onHome: () -> Unit, onSelect: (Tab) -> Unit, onSignOut: () -> Unit) {
+fun AppHeader(
+    activeTab: Tab,
+    householdName: String,
+    onHome: () -> Unit,
+    onSelect: (Tab) -> Unit,
+    onCheckUpdate: () -> Unit,
+    onSignOut: () -> Unit
+) {
     var menuOpen by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -833,6 +900,10 @@ fun AppHeader(activeTab: Tab, householdName: String, onHome: () -> Unit, onSelec
                     onSelect = {
                         menuOpen = false
                         onSelect(it)
+                    },
+                    onCheckUpdate = {
+                        menuOpen = false
+                        onCheckUpdate()
                     },
                     onSignOut = {
                         menuOpen = false
@@ -1009,7 +1080,13 @@ fun EmptyState(emoji: String, title: String, body: String) {
 }
 
 @Composable
-fun HomeMenu(expanded: Boolean, onDismiss: () -> Unit, onSelect: (Tab) -> Unit, onSignOut: () -> Unit) {
+fun HomeMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onSelect: (Tab) -> Unit,
+    onCheckUpdate: () -> Unit,
+    onSignOut: () -> Unit
+) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = Color.White) {
         listOf(Tab.Home, Tab.Shopping, Tab.Calendar, Tab.Tasks, Tab.Birthdays, Tab.Budget, Tab.Notes, Tab.Members).forEach { tab ->
             DropdownMenuItem(
@@ -1019,11 +1096,52 @@ fun HomeMenu(expanded: Boolean, onDismiss: () -> Unit, onSelect: (Tab) -> Unit, 
             )
         }
         DropdownMenuItem(
+            text = { Text("Mise a jour", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+            leadingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = DeepGreen) },
+            onClick = onCheckUpdate
+        )
+        DropdownMenuItem(
             text = { Text("Deconnexion", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
             leadingIcon = { Icon(Icons.Filled.Logout, contentDescription = null, tint = Muted) },
             onClick = onSignOut
         )
     }
+}
+
+@Composable
+fun UpdateAvailableDialog(update: UpdateInfo, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Mise a jour disponible", fontWeight = FontWeight.Black, color = Ink) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Version ${update.versionName}", fontWeight = FontWeight.Bold, color = DeepGreen)
+                Text(update.notes.ifBlank { "Une nouvelle version de Mon Foyer est disponible." }, color = Muted)
+                Text("Android demandera une confirmation avant l'installation.", color = Muted, fontSize = 13.sp)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.apkUrl)))
+                    onDismiss()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = DeepGreen)
+            ) {
+                Text("Installer")
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = SoftGrey, contentColor = Ink)
+            ) {
+                Text("Plus tard")
+            }
+        },
+        containerColor = Color.White
+    )
 }
 
 @Composable
