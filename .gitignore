@@ -5,6 +5,9 @@
 build/
 local.properties
 captures/
+app/release/
+*.apk
+*.aab
 *.iml
 *.jks
 *.keystore

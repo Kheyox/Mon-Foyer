@@ -1,4 +1,4 @@
-name: Android AAB
+name: Android Release
 
 on:
   push:
@@ -43,13 +43,19 @@ jobs:
         if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
         run: echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
 
-      - name: Build release bundle
+      - name: Build release APK and bundle
         env:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/upload-keystore.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle bundleRelease
+        run: gradle assembleRelease bundleRelease
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mon-foyer-release-apk
+          path: app/build/outputs/apk/release/*.apk
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
