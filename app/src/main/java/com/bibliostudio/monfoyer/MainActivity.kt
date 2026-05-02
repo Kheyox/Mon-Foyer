@@ -131,7 +131,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.absoluteValue
 
-private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/Kheyox/Mon-Foyer-Releases/main/update.json"
+private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/Kheyox/Mon-Foyer/main/update.json"
 
 data class Household(val id: String = "", val name: String = "Mon foyer", val inviteCode: String = "", val ownerId: String = "")
 data class Member(val id: String = "", val name: String = "", val email: String = "", val role: String = "member", val color: Long = 0xFF174C43)
