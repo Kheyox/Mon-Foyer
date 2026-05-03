@@ -1,6 +1,6 @@
 {
-  "versionCode": 9,
-  "versionName": "1.0.8",
-  "apkUrl": "https://github.com/Kheyox/Mon-Foyer/releases/download/v1.0.8/mon-foyer-1.0.8.apk",
-  "notes": "Accueil repense en grandes cartes lisibles avec une identite Mon Foyer plus nette."
+  "versionCode": 10,
+  "versionName": "1.0.9",
+  "apkUrl": "https://github.com/Kheyox/Mon-Foyer/releases/download/v1.0.9/mon-foyer-1.0.9.apk",
+  "notes": "Ajoute l'historique d'activite, un onboarding plus clair, les parametres du foyer et des roles mieux encadres."
 }

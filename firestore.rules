@@ -20,14 +20,27 @@ service cloud.firestore {
     }
 
     match /households/{householdId} {
-      allow read, update: if householdMember(householdId);
+      allow read: if householdMember(householdId);
+      allow update, delete: if householdAdmin(householdId);
       allow create: if signedIn();
 
       match /members/{memberId} {
         allow read: if householdMember(householdId);
         allow create: if signedIn() && memberId == request.auth.uid;
-        allow update: if signedIn() && (memberId == request.auth.uid || householdAdmin(householdId));
+        allow update: if signedIn()
+          && (
+            householdAdmin(householdId)
+            || (
+              memberId == request.auth.uid
+              && request.resource.data.role == resource.data.role
+            )
+          );
         allow delete: if signedIn() && (memberId == request.auth.uid || householdAdmin(householdId));
+      }
+
+      match /activity/{activityId} {
+        allow read, create: if householdMember(householdId);
+        allow update, delete: if householdAdmin(householdId);
       }
 
       match /{collection}/{documentId} {

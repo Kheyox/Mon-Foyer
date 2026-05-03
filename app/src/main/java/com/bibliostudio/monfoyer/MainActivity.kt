@@ -12,6 +12,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -97,6 +98,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -119,6 +121,7 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -172,6 +175,14 @@ data class MediaRequest(
     val status: String = "pending",
     val adminNote: String = ""
 )
+data class ActivityItem(
+    val id: String = "",
+    val text: String = "",
+    val actorId: String = "",
+    val actorName: String = "",
+    val color: Long = 0xFF174C43,
+    val createdAtMillis: Long = 0L
+)
 data class UpdateInfo(
     val versionCode: Int = 0,
     val versionName: String = "",
@@ -193,6 +204,7 @@ data class AppUiState(
     val tasks: List<HouseholdTask> = emptyList(),
     val birthdays: List<Birthday> = emptyList(),
     val mediaRequests: List<MediaRequest> = emptyList(),
+    val activity: List<ActivityItem> = emptyList(),
     val monthlyBudget: Double = 0.0,
     val selectedTab: Tab = Tab.Home,
     val loading: Boolean = true,
@@ -207,6 +219,7 @@ enum class Tab(val label: String, val icon: ImageVector) {
     Tasks("Taches", Icons.Filled.CheckCircle),
     Calendar("Agenda", Icons.Filled.CalendarMonth),
     Requests("Demandes", Icons.Filled.ViewList),
+    Activity("Activite", Icons.Filled.ViewList),
     Birthdays("Anniversaires", Icons.Filled.Group),
     Notes("Notes", Icons.Filled.EditNote),
     Members("Foyer", Icons.Filled.Group)
@@ -347,7 +360,9 @@ class MonFoyerViewModel : ViewModel() {
         batch.set(householdRef.collection("members").document(user.uid), member)
         batch.set(db.collection("householdInvites").document(code), mapOf("householdId" to householdRef.id))
         batch.set(db.collection("users").document(user.uid), mapOf("householdId" to householdRef.id, "updatedAt" to FieldValue.serverTimestamp()))
-        batch.commit().addOnFailureListener { setError(it.message ?: "Creation impossible.") }
+        batch.commit()
+            .addOnSuccessListener { logActivity(householdRef.id, "a cree le foyer ${name.ifBlank { "Mon foyer" }}") }
+            .addOnFailureListener { setError(it.message ?: "Creation impossible.") }
     }
 
     fun joinHousehold(code: String) {
@@ -371,6 +386,7 @@ class MonFoyerViewModel : ViewModel() {
                         ).addOnSuccessListener {
                             db.collection("users").document(user.uid)
                                 .set(mapOf("householdId" to householdId, "updatedAt" to FieldValue.serverTimestamp()))
+                            logActivity(householdId, "a rejoint le foyer")
                         }
                 }
             }
@@ -398,13 +414,13 @@ class MonFoyerViewModel : ViewModel() {
                 "category" to shoppingCategory(itemName),
                 "favorite" to false
             )
-        )
+        ) { "a ajoute $itemName aux courses" }
     }
     fun addBill(label: String, amount: String) {
         val cleanLabel = label.trim()
         val cleanAmount = amount.parseMoneyOrNull() ?: return
         if (cleanLabel.isBlank() || cleanAmount <= 0.0) return
-        add("bills", mapOf("label" to cleanLabel, "amount" to cleanAmount, "paid" to false))
+        add("bills", mapOf("label" to cleanLabel, "amount" to cleanAmount, "paid" to false)) { "a ajoute une facture $cleanLabel" }
     }
     fun addEvent(
         title: String,
@@ -433,7 +449,7 @@ class MonFoyerViewModel : ViewModel() {
                 "typeIcon" to type.icon,
                 "typeColor" to type.color
             )
-        )
+        ) { "a ajoute l'evenement $title" }
     }
     fun updateEvent(
         eventId: String,
@@ -470,9 +486,9 @@ class MonFoyerViewModel : ViewModel() {
     }
     fun addEventType(name: String, icon: String, color: Long) {
         if (name.isBlank()) return
-        add("eventTypes", mapOf("name" to name, "icon" to icon, "color" to color))
+        add("eventTypes", mapOf("name" to name, "icon" to icon, "color" to color)) { "a cree le type d'evenement ${name.trim()}" }
     }
-    fun addNote(title: String, body: String) = add("notes", mapOf("title" to title, "body" to body))
+    fun addNote(title: String, body: String) = add("notes", mapOf("title" to title, "body" to body)) { "a ajoute une note" }
     fun addTask(title: String, description: String, dueDate: String, emoji: String, member: Member?) {
         if (title.isBlank()) return
         add(
@@ -487,7 +503,7 @@ class MonFoyerViewModel : ViewModel() {
                 "color" to (member?.color ?: memberColorLong(title)),
                 "done" to false
             )
-        )
+        ) { "a ajoute la tache $title" }
     }
     fun updateTask(taskId: String, title: String, description: String, dueDate: String, emoji: String, member: Member?) {
         if (title.isBlank()) return
@@ -516,7 +532,7 @@ class MonFoyerViewModel : ViewModel() {
                 "date" to date.format(DateTimeFormatter.ISO_DATE),
                 "birthYear" to (birthYear.toIntOrNull() ?: 0)
             )
-        )
+        ) { "a ajoute l'anniversaire de ${name.trim()}" }
     }
     fun updateBirthday(birthdayId: String, name: String, date: LocalDate, birthYear: String) {
         val household = state.household ?: return
@@ -552,6 +568,7 @@ class MonFoyerViewModel : ViewModel() {
                     "createdAt" to FieldValue.serverTimestamp()
                 )
             )
+            .addOnSuccessListener { logActivity("a ajoute une demande ${kind.lowercase()}: $cleanTitle") }
             .addOnFailureListener { setError(it.message ?: "Demande impossible.") }
     }
 
@@ -560,6 +577,7 @@ class MonFoyerViewModel : ViewModel() {
         if (!state.isCurrentUserAdmin()) return
         db.collection("households").document(household.id).collection("requests").document(request.id)
             .update(mapOf("status" to status, "updatedAt" to FieldValue.serverTimestamp()))
+            .addOnSuccessListener { logActivity("a marque ${request.title} comme ${status.mediaStatusLabel().lowercase()}") }
             .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
     }
 
@@ -602,6 +620,16 @@ class MonFoyerViewModel : ViewModel() {
         db.collection("households").document(household.id).collection(collection).document(id).delete()
     }
 
+    fun updateHouseholdName(name: String) {
+        val household = state.household ?: return
+        if (!state.isCurrentUserAdmin()) return
+        val cleanName = name.trim().ifBlank { "Mon foyer" }
+        db.collection("households").document(household.id)
+            .update(mapOf("name" to cleanName, "updatedAt" to FieldValue.serverTimestamp()))
+            .addOnSuccessListener { logActivity("a renomme le foyer en $cleanName") }
+            .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
+    }
+
     fun deleteCheckedShoppingItems() {
         val household = state.household ?: return
         val checkedItems = state.shopping.filter { it.done }
@@ -613,11 +641,22 @@ class MonFoyerViewModel : ViewModel() {
         batch.commit().addOnFailureListener { setError(it.message ?: "Suppression impossible.") }
     }
 
-    fun updateMember(memberId: String, name: String, color: Long) {
+    fun updateMember(memberId: String, name: String, color: Long, role: String = "") {
         val household = state.household ?: return
+        val canEdit = state.isCurrentUserAdmin() || memberId == state.currentUserId
+        if (!canEdit) return
         val cleanName = name.trim().ifBlank { "Membre" }
+        val values = mutableMapOf<String, Any>(
+            "name" to cleanName,
+            "color" to color,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+        if (state.isCurrentUserAdmin() && memberId != state.currentUserId && role in listOf("admin", "member")) {
+            values["role"] = role
+        }
         db.collection("households").document(household.id).collection("members").document(memberId)
-            .update(mapOf("name" to cleanName, "color" to color, "updatedAt" to FieldValue.serverTimestamp()))
+            .update(values)
+            .addOnSuccessListener { logActivity("a mis a jour le profil de $cleanName") }
             .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
     }
 
@@ -635,12 +674,38 @@ class MonFoyerViewModel : ViewModel() {
             .addOnFailureListener { setError(it.message ?: "Impossible de quitter le foyer.") }
     }
 
-    private fun add(collection: String, values: Map<String, Any>) {
+    private fun add(collection: String, values: Map<String, Any>, activityText: (() -> String)? = null) {
         val household = state.household ?: return
         val cleanValues = values.filterValues { value -> value.toString().isNotBlank() }
         if (cleanValues.isEmpty()) return
         db.collection("households").document(household.id).collection(collection)
             .add(cleanValues + mapOf("createdAt" to FieldValue.serverTimestamp()))
+            .addOnSuccessListener { activityText?.let { logActivity(it()) } }
+    }
+
+    private fun activityPayload(text: String): Map<String, Any> {
+        val user = auth.currentUser
+        val actorId = user?.uid ?: state.currentUserId
+        val member = state.members.firstOrNull { it.id == actorId }
+        val actorName = member?.name?.ifBlank { null } ?: user?.displayName ?: state.userName.ifBlank { "Membre" }
+        return mapOf(
+            "text" to text,
+            "actorId" to actorId,
+            "actorName" to actorName,
+            "color" to (member?.color ?: memberColorLong(actorId)),
+            "createdAt" to FieldValue.serverTimestamp(),
+            "createdAtMillis" to System.currentTimeMillis()
+        )
+    }
+
+    private fun logActivity(text: String) {
+        val household = state.household ?: return
+        logActivity(household.id, text)
+    }
+
+    private fun logActivity(householdId: String, text: String) {
+        db.collection("households").document(householdId).collection("activity")
+            .add(activityPayload(text))
     }
 
     private fun update(collection: String, id: String, field: String, value: Any) {
@@ -778,6 +843,21 @@ class MonFoyerViewModel : ViewModel() {
                 )
             }.orEmpty())
         }
+        listeners += householdRef.collection("activity")
+            .orderBy("createdAtMillis", Query.Direction.DESCENDING)
+            .limit(50)
+            .addSnapshotListener { snap, _ ->
+                state = state.copy(activity = snap?.documents?.map {
+                    ActivityItem(
+                        id = it.id,
+                        text = it.getString("text") ?: "",
+                        actorId = it.getString("actorId") ?: "",
+                        actorName = it.getString("actorName") ?: "Membre",
+                        color = it.getLong("color") ?: 0xFF174C43,
+                        createdAtMillis = it.getLong("createdAtMillis") ?: 0L
+                    )
+                }.orEmpty())
+            }
     }
 
     private fun clearListeners(keepFirst: Boolean = false) {
@@ -893,23 +973,48 @@ fun SignInScreen(vm: MonFoyerViewModel) {
 fun HouseholdGate(vm: MonFoyerViewModel) {
     var name by remember { mutableStateOf("Mon foyer") }
     var code by remember { mutableStateOf("") }
-    Column(
-        Modifier.fillMaxSize().systemBarsPadding().padding(24.dp),
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        BrandLogo()
-        Spacer(Modifier.height(28.dp))
-        Text("Ton espace commun", fontSize = 34.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, color = Ink)
-        Text("Cree ton foyer ou rejoins celui d'un proche.", fontSize = 17.sp, color = Muted)
-        Spacer(Modifier.height(24.dp))
-        SoftInput(value = name, onValueChange = { name = it }, label = "Nom du foyer")
-        Spacer(Modifier.height(10.dp))
-        PrimaryButton(text = "Creer mon foyer", icon = Icons.Filled.Home) { vm.createHousehold(name) }
-        Spacer(Modifier.height(24.dp))
-        SoftInput(value = code, onValueChange = { code = it }, label = "Code d'invitation")
-        Spacer(Modifier.height(10.dp))
-        SecondaryButton(text = "Rejoindre", icon = Icons.Filled.Group) { vm.joinHousehold(code) }
-        vm.state.error?.let { ErrorText(it) }
+        item {
+            BrandLogo()
+            Spacer(Modifier.height(28.dp))
+            Text("Ton espace commun", fontSize = 34.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, color = Ink)
+            Text("En trois minutes, ton foyer est pret a partager courses, taches, agendas et demandes.", fontSize = 17.sp, lineHeight = 22.sp, color = Muted)
+            Spacer(Modifier.height(18.dp))
+            OnboardingStep("1", "Cree ou rejoins un foyer prive", "Chaque foyer a son code d'invitation.")
+            OnboardingStep("2", "Invite les membres", "Chaque membre garde sa couleur dans toute l'app.")
+            OnboardingStep("3", "Organisez sans friction", "Les actions importantes alimentent l'historique.")
+            Spacer(Modifier.height(22.dp))
+            SoftInput(value = name, onValueChange = { name = it }, label = "Nom du foyer", leadingIcon = Icons.Filled.Home)
+            Spacer(Modifier.height(10.dp))
+            PrimaryButton(text = "Creer mon foyer", icon = Icons.Filled.Home) { vm.createHousehold(name) }
+            Spacer(Modifier.height(24.dp))
+            SoftInput(value = code, onValueChange = { code = it }, label = "Code d'invitation", leadingIcon = Icons.Filled.Group)
+            Spacer(Modifier.height(10.dp))
+            SecondaryButton(text = "Rejoindre", icon = Icons.Filled.Group) { vm.joinHousehold(code) }
+            vm.state.error?.let { ErrorText(it) }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+fun OnboardingStep(number: String, title: String, body: String) {
+    Surface(color = Color.White, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Mint, shape = CircleShape, modifier = Modifier.size(42.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(number, color = DeepGreen, fontSize = 17.sp, fontWeight = FontWeight.Black)
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Black, color = Ink)
+                Text(body, fontSize = 13.sp, color = Muted, lineHeight = 16.sp)
+            }
+        }
     }
 }
 
@@ -944,6 +1049,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
                 Tab.Tasks -> TasksScreen(vm)
                 Tab.Calendar -> AgendaScreen(vm)
                 Tab.Requests -> RequestsScreen(vm)
+                Tab.Activity -> ActivityScreen(vm)
                 Tab.Birthdays -> BirthdaysScreen(vm)
                 Tab.Notes -> NotesScreen(vm)
                 Tab.Members -> MembersScreen(vm)
@@ -1030,6 +1136,21 @@ fun Dashboard(vm: MonFoyerViewModel) {
         ModuleTile(Tab.Notes, "Notes", "Idees et pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD9B8), Color(0xFFFFB8A8)), Icons.Filled.EditNote, "📝", Clay),
         ModuleTile(Tab.Members, "Foyer", "Membres, couleurs et invitation", state.members.size.toString(), listOf(Color(0xFFD6F4EF), Color(0xFFBCE8F5)), Icons.Filled.Group, "🏡", DeepGreen)
     )
+    val visibleModules = modules.toMutableList().apply {
+        add(
+            4,
+            ModuleTile(
+                Tab.Activity,
+                "Activite",
+                "Ce qui bouge dans la maison",
+                state.activity.size.takeIf { it > 0 }?.toString(),
+                listOf(Color(0xFFFFEDC7), Color(0xFFD9F7EF)),
+                Icons.Filled.ViewList,
+                "✨",
+                Color(0xFFDE8C2D)
+            )
+        )
+    }
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp).navigationBarsPadding()
@@ -1067,7 +1188,10 @@ fun Dashboard(vm: MonFoyerViewModel) {
             }
         }
         item { HomeInsightStrip(state) }
-        items(modules) { tile ->
+        if (state.members.isNotEmpty()) {
+            item { MemberColorStrip(state.members) }
+        }
+        items(visibleModules) { tile ->
             ModuleCard(tile = tile, onClick = { vm.select(tile.tab) })
         }
         item { Spacer(Modifier.height(76.dp)) }
@@ -1076,10 +1200,12 @@ fun Dashboard(vm: MonFoyerViewModel) {
 
 @Composable
 fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
+    val scale by animateFloatAsState(targetValue = if (tile.count != null) 1f else 0.985f, label = "module-scale")
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(106.dp)
+            .graphicsLayer(scaleX = scale, scaleY = scale)
             .clip(RoundedCornerShape(26.dp))
             .background(androidx.compose.ui.graphics.Brush.linearGradient(tile.colors))
             .clickable(onClick = onClick)
@@ -1124,6 +1250,26 @@ fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
 }
 
 @Composable
+fun MemberColorStrip(members: List<Member>) {
+    Surface(color = Paper, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Couleurs du foyer", color = Muted, fontSize = 14.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
+            members.take(6).forEach { member ->
+                Surface(color = Color(member.color), shape = CircleShape, modifier = Modifier.size(34.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(member.name.memberInitial(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
+            }
+        }
+    }
+}
+
+@Composable
 fun HomeInsightStrip(state: AppUiState) {
     val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
     val todayEvents = state.events.count { it.date == today }
@@ -1159,13 +1305,23 @@ fun HomeInsightStrip(state: AppUiState) {
 
 @Composable
 fun EmptyState(emoji: String, title: String, body: String) {
-    Surface(color = SoftGrey, shape = RoundedCornerShape(AppRadius), modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(emoji, fontSize = 34.sp)
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
-                Text(body, fontSize = 14.sp, lineHeight = 17.sp, color = Muted, fontWeight = FontWeight.Medium)
+    Surface(color = Color.White, shape = RoundedCornerShape(28.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
+        Box(Modifier.padding(18.dp)) {
+            Canvas(Modifier.matchParentSize()) {
+                drawCircle(Mint.copy(alpha = 0.55f), radius = 58.dp.toPx(), center = Offset(size.width - 12.dp.toPx(), 8.dp.toPx()))
+                drawCircle(Lemon.copy(alpha = 0.32f), radius = 34.dp.toPx(), center = Offset(20.dp.toPx(), size.height - 8.dp.toPx()))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = Cream, shape = RoundedCornerShape(22.dp)) {
+                    Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
+                        Text(emoji, fontSize = 34.sp)
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
+                Column {
+                    Text(title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
+                    Text(body, fontSize = 14.sp, lineHeight = 17.sp, color = Muted, fontWeight = FontWeight.Medium)
+                }
             }
         }
     }
@@ -1180,7 +1336,7 @@ fun HomeMenu(
     onSignOut: () -> Unit
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = Color.White) {
-        listOf(Tab.Home, Tab.Calendar, Tab.Tasks, Tab.Shopping, Tab.Requests, Tab.Birthdays, Tab.Notes, Tab.Members).forEach { tab ->
+        listOf(Tab.Home, Tab.Calendar, Tab.Tasks, Tab.Shopping, Tab.Requests, Tab.Activity, Tab.Birthdays, Tab.Notes, Tab.Members).forEach { tab ->
             DropdownMenuItem(
                 text = { Text(tab.label, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
                 leadingIcon = { Icon(tab.icon, contentDescription = null, tint = DeepGreen) },
@@ -2047,6 +2203,45 @@ fun NotesScreen(vm: MonFoyerViewModel) {
 }
 
 @Composable
+fun ActivityScreen(vm: MonFoyerViewModel) {
+    val activity = vm.state.activity
+    ModulePanel(title = "Activite") {
+        if (activity.isEmpty()) {
+            item {
+                EmptyState(
+                    emoji = "✨",
+                    title = "Rien pour l'instant",
+                    body = "Les ajouts, modifications importantes et decisions du foyer apparaitront ici."
+                )
+            }
+        } else {
+            items(activity) { item ->
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(AppRadius),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(color = Color(item.color), shape = CircleShape, modifier = Modifier.size(48.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(item.actorName.memberInitial(), color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.actorName.ifBlank { "Membre" }, fontSize = 17.sp, fontWeight = FontWeight.Black, color = Ink)
+                            Text(item.text, fontSize = 15.sp, lineHeight = 18.sp, color = Muted, fontWeight = FontWeight.SemiBold)
+                        }
+                        Text(item.createdAtMillis.activityAgeLabel(), fontSize = 12.sp, color = Muted, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun MembersScreen(vm: MonFoyerViewModel) {
     val state = vm.state
     val context = LocalContext.current
@@ -2057,8 +2252,27 @@ fun MembersScreen(vm: MonFoyerViewModel) {
     var remindersEnabled by remember { mutableStateOf(ReminderScheduler.remindersEnabled(context)) }
     val currentMember = state.members.firstOrNull { it.id == state.currentUserId }
     val isAdmin = currentMember?.role == "admin"
+    var householdName by remember(state.household?.id) { mutableStateOf(state.household?.name ?: "Mon foyer") }
 
     ModulePanel(title = "Mon foyer") {
+        item {
+            Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("Parametres du foyer", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
+                    Spacer(Modifier.height(8.dp))
+                    if (isAdmin) {
+                        SoftInput(value = householdName, onValueChange = { householdName = it }, label = "Nom du foyer", leadingIcon = Icons.Filled.Home)
+                        Spacer(Modifier.height(10.dp))
+                        SecondaryButton(text = "Enregistrer le nom", icon = Icons.Filled.CheckCircle) {
+                            vm.updateHouseholdName(householdName)
+                        }
+                    } else {
+                        Text(state.household?.name ?: "Mon foyer", fontSize = 18.sp, fontWeight = FontWeight.Black, color = DeepGreen)
+                        Text("Seuls les admins peuvent modifier les parametres du foyer.", fontSize = 14.sp, color = Muted, lineHeight = 17.sp)
+                    }
+                }
+            }
+        }
         item {
             Surface(color = SoftGrey, shape = RoundedCornerShape(AppRadius), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp)) {
@@ -2162,9 +2376,10 @@ fun MembersScreen(vm: MonFoyerViewModel) {
     editingMember?.let { member ->
         MemberEditorSheet(
             member = member,
+            canManageRole = isAdmin && member.id != state.currentUserId,
             onDismiss = { editingMember = null },
-            onSave = { name, color ->
-                vm.updateMember(member.id, name, color)
+            onSave = { name, color, role ->
+                vm.updateMember(member.id, name, color, role)
                 editingMember = null
             }
         )
@@ -2185,9 +2400,10 @@ fun MembersScreen(vm: MonFoyerViewModel) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MemberEditorSheet(member: Member, onDismiss: () -> Unit, onSave: (String, Long) -> Unit) {
+fun MemberEditorSheet(member: Member, canManageRole: Boolean, onDismiss: () -> Unit, onSave: (String, Long, String) -> Unit) {
     var name by remember(member.id) { mutableStateOf(member.name.ifBlank { "Membre" }) }
     var color by remember(member.id) { mutableStateOf(member.color) }
+    var role by remember(member.id) { mutableStateOf(member.role) }
     val colors = listOf(0xFF174C43, 0xFFE86675, 0xFFE8A64F, 0xFF5C8EE6, 0xFF8A6FDF, 0xFF2F9C95, 0xFF54B568, 0xFFB56AE8)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -2242,11 +2458,33 @@ fun MemberEditorSheet(member: Member, onDismiss: () -> Unit, onSave: (String, Lo
                     }
                 }
             }
+            if (canManageRole) {
+                Spacer(Modifier.height(24.dp))
+                Text("Role", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    RoleChip("Membre", role == "member", Modifier.weight(1f)) { role = "member" }
+                    RoleChip("Admin", role == "admin", Modifier.weight(1f)) { role = "admin" }
+                }
+            }
             Spacer(Modifier.height(30.dp))
             PrimaryButton(text = "Enregistrer", icon = Icons.Filled.CheckCircle) {
-                onSave(name, color)
+                onSave(name, color, role)
             }
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+fun RoleChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        color = if (selected) DeepGreen else SoftGrey,
+        shape = RoundedCornerShape(18.dp),
+        modifier = modifier.height(52.dp).clickable(onClick = onClick)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(label, color = if (selected) Color.White else Muted, fontSize = 17.sp, fontWeight = FontWeight.Black)
         }
     }
 }
@@ -3562,6 +3800,23 @@ fun <T> PickerColumn(
 fun memberColorLong(seed: String): Long {
     val palette = listOf(0xFF174C43, 0xFFE86675, 0xFFE8A64F, 0xFF5C8EE6, 0xFF8A6FDF, 0xFF2F9C95)
     return palette[(seed.hashCode().absoluteValue) % palette.size]
+}
+
+fun Long.activityAgeLabel(): String {
+    if (this <= 0L) return "maintenant"
+    val minutes = ((System.currentTimeMillis() - this) / 60000).coerceAtLeast(0)
+    return when {
+        minutes < 1 -> "maintenant"
+        minutes < 60 -> "${minutes} min"
+        minutes < 1440 -> "${minutes / 60} h"
+        else -> "${minutes / 1440} j"
+    }
+}
+
+fun String.mediaStatusLabel(): String = when (this) {
+    "approved" -> "Valide"
+    "rejected" -> "Refuse"
+    else -> "En attente"
 }
 
 fun memberColor(seed: String): Color = Color(memberColorLong(seed))
