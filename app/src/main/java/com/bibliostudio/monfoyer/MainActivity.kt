@@ -204,7 +204,6 @@ enum class Tab(val label: String, val icon: ImageVector) {
     Home("Accueil", Icons.Filled.Home),
     Shopping("Courses", Icons.Filled.ShoppingCart),
     Tasks("Taches", Icons.Filled.CheckCircle),
-    Budget("Budget", Icons.Filled.Payments),
     Calendar("Agenda", Icons.Filled.CalendarMonth),
     Requests("Demandes", Icons.Filled.ViewList),
     Birthdays("Anniversaires", Icons.Filled.Group),
@@ -785,19 +784,21 @@ class MonFoyerViewModel : ViewModel() {
     }
 }
 
-private val Cream = Color(0xFFF6F3EC)
-private val DeepGreen = Color(0xFF12483F)
-private val Leaf = Color(0xFF5DC7A6)
-private val Mint = Color(0xFFC9F0E3)
-private val Lemon = Color(0xFFFFE39A)
-private val Coral = Color(0xFFE97078)
-private val Sky = Color(0xFFB9E4EF)
-private val Lilac = Color(0xFFD7CEF7)
-private val Apricot = Color(0xFFFFC8A8)
-private val SoftGrey = Color(0xFFF1F0EC)
-private val CardBorder = Color(0xFFE5E1DA)
-private val Ink = Color(0xFF101312)
-private val Muted = Color(0xFF85837D)
+private val Cream = Color(0xFFFFFAF1)
+private val DeepGreen = Color(0xFF103F37)
+private val Leaf = Color(0xFF42A47D)
+private val Mint = Color(0xFFD5F4E8)
+private val Lemon = Color(0xFFFFD86B)
+private val Coral = Color(0xFFFF7E6E)
+private val Sky = Color(0xFFCDEBFF)
+private val Lilac = Color(0xFFE5D8FF)
+private val Apricot = Color(0xFFFFD0A8)
+private val SoftGrey = Color(0xFFF2EEE6)
+private val CardBorder = Color(0xFFE7DDCF)
+private val Ink = Color(0xFF17201D)
+private val Muted = Color(0xFF7F776D)
+private val Paper = Color(0xFFFFFFFB)
+private val Clay = Color(0xFFC96D52)
 
 private val AppRadius = 22.dp
 private val PanelRadius = 34.dp
@@ -862,7 +863,7 @@ fun SignInScreen(vm: MonFoyerViewModel) {
         Spacer(Modifier.height(36.dp))
         Text("Bienvenue dans ton foyer", fontSize = 38.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, color = Ink)
         Spacer(Modifier.height(12.dp))
-        Text("Courses, budget, agenda et petites notes au meme endroit.", fontSize = 18.sp, color = Muted)
+        Text("Courses, agenda, taches et petites notes au meme endroit.", fontSize = 18.sp, color = Muted)
         Spacer(Modifier.height(32.dp))
         PrimaryButton(text = "Continuer avec Google", icon = Icons.Filled.Group) {
             scope.launch { vm.signInWithGoogle(context, context.getString(R.string.web_client_id)) }
@@ -921,7 +922,6 @@ fun HomeShell(vm: MonFoyerViewModel) {
                 Tab.Home -> Dashboard(vm)
                 Tab.Shopping -> ShoppingScreen(vm)
                 Tab.Tasks -> TasksScreen(vm)
-                Tab.Budget -> BudgetScreen(vm)
                 Tab.Calendar -> AgendaScreen(vm)
                 Tab.Requests -> RequestsScreen(vm)
                 Tab.Birthdays -> BirthdaysScreen(vm)
@@ -949,11 +949,10 @@ fun AppHeader(
     onSignOut: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             BrandLogo(Modifier.weight(1f))
-            FlowerMark()
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(10.dp))
             Box {
                 RoundIconButton(icon = Icons.Filled.MoreVert, tint = DeepGreen, onClick = { menuOpen = true })
                 HomeMenu(
@@ -973,22 +972,28 @@ fun AppHeader(
                     }
                 )
             }
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(10.dp))
             RoundIconButton(icon = Icons.Filled.Logout, tint = Muted, onClick = onSignOut)
         }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(16.dp))
         if (activeTab != Tab.Home) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = DeepGreen, shape = RoundedCornerShape(50), shadowElevation = 3.dp, modifier = Modifier.clickable { onHome() }) {
-                    Row(Modifier.padding(horizontal = 18.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = DeepGreen, shape = RoundedCornerShape(50), shadowElevation = 2.dp, modifier = Modifier.clickable { onHome() }) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(activeTab.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(activeTab.label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                        Text(activeTab.label, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Black)
                     }
                 }
             }
         } else {
-            Text(householdName, color = Muted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Surface(color = Paper.copy(alpha = 0.78f), shape = RoundedCornerShape(50), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(Leaf))
+                    Spacer(Modifier.width(8.dp))
+                    Text(householdName, color = Muted, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                }
+            }
         }
     }
 }
@@ -997,21 +1002,28 @@ fun AppHeader(
 fun Dashboard(vm: MonFoyerViewModel) {
     val state = vm.state
     val modules = listOf(
-        ModuleTile(Tab.Shopping, "Courses", "Liste partagee", state.shopping.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFC6F7DD), Color(0xFF7FE2BE)), Icons.Filled.ShoppingCart, "🛒", Color(0xFF15A779)),
-        ModuleTile(Tab.Calendar, "Agenda", "Journees du foyer", state.events.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFEC9F), Color(0xFFFFC56E)), Icons.Filled.CalendarMonth, "📅", Color(0xFFE39318)),
-        ModuleTile(Tab.Tasks, "Taches", "A faire ensemble", state.tasks.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFBDEBFF), Color(0xFF90D6F7)), Icons.Filled.CheckCircle, "✅", Color(0xFF3C93D8)),
-        ModuleTile(Tab.Notes, "Notes", "Idees et pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFB6C7), Color(0xFFFFD7E1)), Icons.Filled.EditNote, "📝", Color(0xFFE85F8C)),
-        ModuleTile(Tab.Budget, "Budget", "Factures et reste", null, listOf(Color(0xFFFFC6A8), Color(0xFFFFE0A8)), Icons.Filled.Payments, "💶", Color(0xFFE07A35)),
-        ModuleTile(Tab.Requests, "Demandes", "Livres et films", state.pendingRequestCount().takeIf { it > 0 }?.toString(), listOf(Color(0xFFC7D8FF), Color(0xFFE5D0FF)), Icons.Filled.ViewList, "🎬", Color(0xFF6D6FE8)),
-        ModuleTile(Tab.Birthdays, "Anniv.", "Dates importantes", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFD8C8FF), Color(0xFFFFD2EE)), Icons.Filled.Group, "🎂", Color(0xFF8B6CE8)),
-        ModuleTile(Tab.Members, "Foyer", "Membres et code", state.members.size.toString(), listOf(Color(0xFFC8F0EA), Color(0xFFAEDFF3)), Icons.Filled.Group, "🏡", DeepGreen)
+        ModuleTile(Tab.Calendar, "Agenda", "Rendez-vous", state.events.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFE5A3), Color(0xFFFFBE73)), Icons.Filled.CalendarMonth, "📅", Color(0xFFE28B21)),
+        ModuleTile(Tab.Tasks, "Taches", "A faire", state.tasks.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFC9EFFF), Color(0xFF92D7F6)), Icons.Filled.CheckCircle, "✅", Color(0xFF2E89C9)),
+        ModuleTile(Tab.Shopping, "Courses", "Liste commune", state.shopping.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFD3F7DE), Color(0xFF85DFAF)), Icons.Filled.ShoppingCart, "🛒", Color(0xFF139567)),
+        ModuleTile(Tab.Requests, "Demandes", "Films & livres", state.pendingRequestCount().takeIf { it > 0 }?.toString(), listOf(Color(0xFFE5D8FF), Color(0xFFC9D9FF)), Icons.Filled.ViewList, "🎬", Color(0xFF6B63D8)),
+        ModuleTile(Tab.Birthdays, "Anniversaires", "A ne pas oublier", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD6E3), Color(0xFFD8CBFF)), Icons.Filled.Group, "🎂", Color(0xFFB256B4)),
+        ModuleTile(Tab.Notes, "Notes", "Pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD9B8), Color(0xFFFFB8A8)), Icons.Filled.EditNote, "📝", Clay),
+        ModuleTile(Tab.Members, "Foyer", "Membres & code", state.members.size.toString(), listOf(Color(0xFFD6F4EF), Color(0xFFBCE8F5)), Icons.Filled.Group, "🏡", DeepGreen)
     )
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Mes espaces", fontSize = 36.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
-            Text("✨", fontSize = 30.sp)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f)) {
+                Text("Tableau", fontSize = 40.sp, lineHeight = 39.sp, fontWeight = FontWeight.Black, color = Ink)
+                Text("du foyer", fontSize = 40.sp, lineHeight = 39.sp, fontWeight = FontWeight.Black, color = DeepGreen)
+            }
+            Surface(color = Lemon, shape = RoundedCornerShape(22.dp), modifier = Modifier.size(58.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("✨", fontSize = 27.sp)
+                }
+            }
         }
-        Text("Un foyer organise, vivant, et un peu plus joyeux.", fontSize = 15.sp, color = Muted, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(8.dp))
+        Text("Les petites choses du quotidien, rangees au meme endroit.", fontSize = 15.sp, lineHeight = 19.sp, color = Muted, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(14.dp))
         HomeInsightStrip(state)
         Spacer(Modifier.height(16.dp))
@@ -1030,52 +1042,50 @@ fun Dashboard(vm: MonFoyerViewModel) {
 
 @Composable
 fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
-    val titleSize = if (tile.title.length > 10) 23.sp else 25.sp
+    val titleSize = if (tile.title.length > 12) 21.sp else 24.sp
     Box(
         modifier = Modifier
-            .height(176.dp)
-            .clip(RoundedCornerShape(32.dp))
+            .height(168.dp)
+            .clip(RoundedCornerShape(28.dp))
             .background(androidx.compose.ui.graphics.Brush.linearGradient(tile.colors))
             .clickable(onClick = onClick)
-            .padding(16.dp)
+            .padding(14.dp)
     ) {
         Canvas(Modifier.matchParentSize()) {
             drawCircle(
                 color = Color.White.copy(alpha = 0.24f),
-                radius = 70.dp.toPx(),
-                center = Offset(size.width - 6.dp.toPx(), size.height - 2.dp.toPx())
+                radius = 76.dp.toPx(),
+                center = Offset(size.width - 8.dp.toPx(), size.height + 10.dp.toPx())
             )
             drawCircle(
-                color = tile.accent.copy(alpha = 0.14f),
-                radius = 30.dp.toPx(),
-                center = Offset(28.dp.toPx(), 28.dp.toPx())
+                color = Color.White.copy(alpha = 0.22f),
+                radius = 34.dp.toPx(),
+                center = Offset(18.dp.toPx(), 24.dp.toPx())
             )
             drawCircle(
-                color = Color.White.copy(alpha = 0.26f),
-                radius = 18.dp.toPx(),
-                center = Offset(size.width - 86.dp.toPx(), size.height - 26.dp.toPx())
+                color = tile.accent.copy(alpha = 0.16f),
+                radius = 42.dp.toPx(),
+                center = Offset(size.width - 26.dp.toPx(), 32.dp.toPx())
             )
         }
-        Surface(color = Color.White.copy(alpha = 0.54f), shape = RoundedCornerShape(50), modifier = Modifier.align(Alignment.TopStart)) {
-            Box(Modifier.width(104.dp)) {
-                Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(tile.icon, contentDescription = null, tint = tile.accent, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text(tile.subtitle, fontSize = 11.sp, fontWeight = FontWeight.Black, color = tile.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+        Surface(color = Paper.copy(alpha = 0.84f), shape = RoundedCornerShape(18.dp), shadowElevation = 1.dp) {
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                Icon(tile.icon, contentDescription = null, tint = tile.accent, modifier = Modifier.size(27.dp))
             }
         }
         Text(
             tile.emoji,
-            fontSize = 58.sp,
-            modifier = Modifier.align(Alignment.Center).offset(y = 10.dp)
+            fontSize = 46.sp,
+            modifier = Modifier.align(Alignment.CenterEnd).offset(x = 4.dp, y = 6.dp)
         )
         Column(
             Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(end = 8.dp)
+                .padding(end = 30.dp)
         ) {
+            Text(tile.subtitle, fontSize = 12.sp, fontWeight = FontWeight.Black, color = tile.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(3.dp))
             Text(
                 tile.title,
                 fontSize = titleSize,
@@ -1088,7 +1098,7 @@ fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
         }
         tile.count?.let {
             Surface(color = tile.accent, shape = CircleShape, shadowElevation = 3.dp, modifier = Modifier.align(Alignment.TopEnd)) {
-                Text(it, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp), fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text(it, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp), fontSize = 15.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
     }
@@ -1106,9 +1116,9 @@ fun HomeInsightStrip(state: AppUiState) {
         "J-$days ${it.name}"
     } ?: "Aucun"
     val insights = listOf(
-        "📅 $todayEvents auj.",
-        "✅ $openTasks taches",
-        "🛒 $remainingShopping items",
+        "📅 $todayEvents aujourd'hui",
+        "✅ $openTasks a faire",
+        "🛒 $remainingShopping courses",
         "🎂 $birthdayLabel"
     )
     LazyVerticalGrid(
@@ -1119,7 +1129,7 @@ fun HomeInsightStrip(state: AppUiState) {
         modifier = Modifier.height(116.dp)
     ) {
         gridItems(insights) { insight ->
-            Surface(color = Color.White.copy(alpha = 0.76f), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)) {
+            Surface(color = Paper, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), shadowElevation = 1.dp) {
                 Box(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.CenterStart) {
                     Text(insight, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -1151,7 +1161,7 @@ fun HomeMenu(
     onSignOut: () -> Unit
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = Color.White) {
-        listOf(Tab.Home, Tab.Shopping, Tab.Calendar, Tab.Tasks, Tab.Requests, Tab.Birthdays, Tab.Budget, Tab.Notes, Tab.Members).forEach { tab ->
+        listOf(Tab.Home, Tab.Calendar, Tab.Tasks, Tab.Shopping, Tab.Requests, Tab.Birthdays, Tab.Notes, Tab.Members).forEach { tab ->
             DropdownMenuItem(
                 text = { Text(tab.label, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
                 leadingIcon = { Icon(tab.icon, contentDescription = null, tint = DeepGreen) },
@@ -2225,7 +2235,7 @@ fun MemberEditorSheet(member: Member, onDismiss: () -> Unit, onSave: (String, Lo
 @Composable
 fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
     Surface(
-        color = Color.White,
+        color = Paper,
         shape = RoundedCornerShape(topStart = PanelRadius, topEnd = PanelRadius),
         modifier = Modifier.fillMaxSize()
     ) {
@@ -2237,17 +2247,34 @@ fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
                 Box(Modifier.width(58.dp).height(5.dp).clip(RoundedCornerShape(50)).background(CardBorder))
                 Spacer(Modifier.height(18.dp))
                 val mood = moduleMood(title)
-                Surface(
-                    color = mood.second,
-                    shape = RoundedCornerShape(28.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(30.dp))
+                        .background(mood.second)
                 ) {
+                    Canvas(Modifier.matchParentSize()) {
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.28f),
+                            radius = 64.dp.toPx(),
+                            center = Offset(size.width - 18.dp.toPx(), 16.dp.toPx())
+                        )
+                        drawCircle(
+                            color = DeepGreen.copy(alpha = 0.08f),
+                            radius = 44.dp.toPx(),
+                            center = Offset(16.dp.toPx(), size.height - 6.dp.toPx())
+                        )
+                    }
                     Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(mood.first, fontSize = 38.sp)
+                        Surface(color = Paper.copy(alpha = 0.82f), shape = RoundedCornerShape(20.dp)) {
+                            Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+                                Text(mood.first, fontSize = 32.sp)
+                            }
+                        }
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(title, fontSize = 33.sp, lineHeight = 35.sp, fontWeight = FontWeight.Black, color = Ink)
-                            Text(mood.third, fontSize = 14.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = DeepGreen.copy(alpha = 0.72f))
+                            Text(title, fontSize = 31.sp, lineHeight = 33.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(mood.third, fontSize = 14.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = DeepGreen.copy(alpha = 0.72f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -3536,13 +3563,13 @@ fun shoppingCategory(name: String): String {
 }
 
 fun moduleMood(title: String): Triple<String, Color, String> = when {
-    "course" in title.lowercase(Locale.FRANCE) -> Triple("🛒", Color(0xFFE3FAEE), "Les essentiels, les envies, les oublis evites.")
-    "calendrier" in title.lowercase(Locale.FRANCE) -> Triple("📅", Color(0xFFFFF3C9), "Tout ce qui arrive, clair et partage.")
-    "tache" in title.lowercase(Locale.FRANCE) -> Triple("✅", Color(0xFFE4F6FF), "Qui fait quoi, sans prise de tete.")
-    "anniversaire" in title.lowercase(Locale.FRANCE) -> Triple("🎂", Color(0xFFF2E9FF), "Les dates qui comptent vraiment.")
-    "budget" in title.lowercase(Locale.FRANCE) -> Triple("💶", Color(0xFFFFECD9), "Le budget du mois, lisible en un coup d'oeil.")
-    "note" in title.lowercase(Locale.FRANCE) -> Triple("📝", Color(0xFFFFE5EC), "Les pense-betes du foyer.")
-    "foyer" in title.lowercase(Locale.FRANCE) -> Triple("🏡", Color(0xFFE2F6F2), "Les membres, les couleurs, le code.")
+    "course" in title.lowercase(Locale.FRANCE) -> Triple("🛒", Color(0xFFE0F8E7), "La liste commune, claire et rapide.")
+    "agenda" in title.lowercase(Locale.FRANCE) || "calendrier" in title.lowercase(Locale.FRANCE) -> Triple("📅", Color(0xFFFFF0C8), "Les rendez-vous du foyer.")
+    "tache" in title.lowercase(Locale.FRANCE) -> Triple("✅", Color(0xFFE1F4FF), "Qui fait quoi, sans flou.")
+    "demande" in title.lowercase(Locale.FRANCE) -> Triple("🎬", Color(0xFFE9E1FF), "Films, series et livres a valider.")
+    "anniversaire" in title.lowercase(Locale.FRANCE) -> Triple("🎂", Color(0xFFFFE0EA), "Les dates qui comptent.")
+    "note" in title.lowercase(Locale.FRANCE) -> Triple("📝", Color(0xFFFFE7D4), "Les idees et pense-betes.")
+    "foyer" in title.lowercase(Locale.FRANCE) -> Triple("🏡", Color(0xFFE0F5F1), "Membres, couleurs et invitation.")
     else -> Triple("✨", SoftGrey, "Un espace simple et vivant.")
 }
 
@@ -3771,7 +3798,7 @@ fun BoxScope.FloatingHomeButton(visible: Boolean, onClick: () -> Unit) {
 @Composable
 fun RoundIconButton(icon: ImageVector, tint: Color, onClick: () -> Unit) {
     Surface(
-        color = Color.White,
+        color = Paper,
         shape = CircleShape,
         shadowElevation = 3.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder.copy(alpha = 0.65f)),
@@ -3786,25 +3813,27 @@ fun RoundIconButton(icon: ImageVector, tint: Color, onClick: () -> Unit) {
 @Composable
 fun BrandLogo(modifier: Modifier = Modifier) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.size(48.dp)) {
-            drawCircle(color = Mint, radius = 22.dp.toPx(), center = Offset(size.width / 2, size.height / 2))
+        Canvas(Modifier.size(52.dp)) {
+            drawCircle(color = Mint, radius = 24.dp.toPx(), center = Offset(size.width / 2, size.height / 2))
+            drawCircle(color = Lemon, radius = 5.dp.toPx(), center = Offset(42.dp.toPx(), 10.dp.toPx()))
+            drawCircle(color = Coral, radius = 4.dp.toPx(), center = Offset(44.dp.toPx(), 22.dp.toPx()))
             val roof = Path().apply {
-                moveTo(12.dp.toPx(), 26.dp.toPx())
-                lineTo(24.dp.toPx(), 15.dp.toPx())
-                lineTo(36.dp.toPx(), 26.dp.toPx())
+                moveTo(12.dp.toPx(), 28.dp.toPx())
+                lineTo(26.dp.toPx(), 15.dp.toPx())
+                lineTo(40.dp.toPx(), 28.dp.toPx())
             }
             drawPath(roof, color = DeepGreen, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx()))
-            drawLine(DeepGreen, Offset(15.dp.toPx(), 25.dp.toPx()), Offset(15.dp.toPx(), 36.dp.toPx()), strokeWidth = 4.dp.toPx())
-            drawLine(DeepGreen, Offset(33.dp.toPx(), 25.dp.toPx()), Offset(33.dp.toPx(), 36.dp.toPx()), strokeWidth = 4.dp.toPx())
-            drawLine(DeepGreen, Offset(15.dp.toPx(), 36.dp.toPx()), Offset(33.dp.toPx(), 36.dp.toPx()), strokeWidth = 4.dp.toPx())
-            drawLine(DeepGreen, Offset(23.dp.toPx(), 36.dp.toPx()), Offset(23.dp.toPx(), 30.dp.toPx()), strokeWidth = 3.dp.toPx())
+            drawLine(DeepGreen, Offset(16.dp.toPx(), 27.dp.toPx()), Offset(16.dp.toPx(), 38.dp.toPx()), strokeWidth = 4.dp.toPx())
+            drawLine(DeepGreen, Offset(36.dp.toPx(), 27.dp.toPx()), Offset(36.dp.toPx(), 38.dp.toPx()), strokeWidth = 4.dp.toPx())
+            drawLine(DeepGreen, Offset(16.dp.toPx(), 38.dp.toPx()), Offset(36.dp.toPx(), 38.dp.toPx()), strokeWidth = 4.dp.toPx())
+            drawLine(DeepGreen, Offset(25.dp.toPx(), 38.dp.toPx()), Offset(25.dp.toPx(), 31.dp.toPx()), strokeWidth = 3.dp.toPx())
         }
         Spacer(Modifier.width(10.dp))
         Text(
             "Mon\nFoyer",
             color = DeepGreen,
-            fontSize = 31.sp,
-            lineHeight = 27.sp,
+            fontSize = 30.sp,
+            lineHeight = 26.sp,
             fontWeight = FontWeight.Black
         )
     }
