@@ -584,7 +584,11 @@ class MonFoyerViewModel : ViewModel() {
     fun toggleShopping(item: ShoppingItem) = update("shoppingItems", item.id, "done", !item.done)
     fun toggleShoppingFavorite(item: ShoppingItem) = update("shoppingItems", item.id, "favorite", !item.favorite)
     fun toggleBill(bill: Bill) = update("bills", bill.id, "paid", !bill.paid)
-    fun toggleTask(task: HouseholdTask) = update("tasks", task.id, "done", !task.done)
+    fun toggleTask(task: HouseholdTask) {
+        val newValue = !task.done
+        update("tasks", task.id, "done", newValue)
+        logActivity(if (newValue) "a termine la tache ${task.title}" else "a remis la tache ${task.title} a faire")
+    }
     fun updateShoppingItem(itemId: String, name: String, quantity: String, category: String) {
         val household = state.household ?: return
         val cleanName = name.trim()
@@ -910,6 +914,13 @@ data class ModuleTile(
     val icon: ImageVector,
     val emoji: String,
     val accent: Color
+)
+
+data class MemberStats(
+    val doneTasks: Int = 0,
+    val openTasks: Int = 0,
+    val pendingRequests: Int = 0,
+    val birthdaysAdded: Int = 0
 )
 
 @Composable
@@ -1314,7 +1325,7 @@ fun EmptyState(emoji: String, title: String, body: String) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Cream, shape = RoundedCornerShape(22.dp)) {
                     Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
-                        Text(emoji, fontSize = 34.sp)
+                        HouseMiniMark(emoji)
                     }
                 }
                 Spacer(Modifier.width(14.dp))
@@ -1324,6 +1335,29 @@ fun EmptyState(emoji: String, title: String, body: String) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun HouseMiniMark(emoji: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(42.dp)) {
+            val roof = Path().apply {
+                moveTo(size.width * 0.16f, size.height * 0.52f)
+                lineTo(size.width * 0.50f, size.height * 0.18f)
+                lineTo(size.width * 0.84f, size.height * 0.52f)
+            }
+            drawPath(roof, DeepGreen)
+            drawRoundRect(
+                color = DeepGreen,
+                topLeft = Offset(size.width * 0.25f, size.height * 0.50f),
+                size = androidx.compose.ui.geometry.Size(size.width * 0.50f, size.height * 0.34f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(7.dp.toPx(), 7.dp.toPx())
+            )
+            drawCircle(Leaf, radius = 4.dp.toPx(), center = Offset(size.width * 0.74f, size.height * 0.26f))
+            drawCircle(Coral, radius = 4.dp.toPx(), center = Offset(size.width * 0.88f, size.height * 0.38f))
+        }
+        Text(emoji, fontSize = 20.sp, modifier = Modifier.offset(y = 12.dp))
     }
 }
 
@@ -1860,11 +1894,21 @@ fun MediaRequestCard(
         "rejected" -> "Refuse"
         else -> "En attente"
     }
+    val cardScale by animateFloatAsState(
+        targetValue = if (request.status == "pending") 1f else 0.985f,
+        label = "request-card-scale"
+    )
+    val statusScale by animateFloatAsState(
+        targetValue = if (request.status == "pending") 1f else 1.08f,
+        label = "request-status-scale"
+    )
     Surface(
         color = Color.White,
         shape = RoundedCornerShape(AppRadius),
         border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer(scaleX = cardScale, scaleY = cardScale)
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
@@ -1874,7 +1918,11 @@ fun MediaRequestCard(
                     Text(request.title, fontSize = 22.sp, lineHeight = 25.sp, fontWeight = FontWeight.Black, color = Ink)
                     Text("Demande de ${request.requesterName.ifBlank { "Membre" }}", fontSize = 14.sp, color = Muted, fontWeight = FontWeight.Bold)
                 }
-                Surface(color = statusColor.copy(alpha = 0.12f), shape = RoundedCornerShape(50)) {
+                Surface(
+                    color = statusColor.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier.graphicsLayer(scaleX = statusScale, scaleY = statusScale)
+                ) {
                     Text(statusText, color = statusColor, fontSize = 13.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
                 }
             }
@@ -2308,42 +2356,12 @@ fun MembersScreen(vm: MonFoyerViewModel) {
         }
         items(state.members.sortedWith(compareByDescending<Member> { it.role == "admin" }.thenBy { it.name.ifBlank { it.email } })) { member ->
             val canEdit = isAdmin || member.id == state.currentUserId
-            Surface(
-                color = Color.White,
-                shape = RoundedCornerShape(AppRadius),
-                border = CardDefaults.outlinedCardBorder(),
-                modifier = Modifier.fillMaxWidth().clickable(enabled = canEdit) { editingMember = member }
-            ) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = Color(member.color), shape = CircleShape, modifier = Modifier.size(54.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                member.name.memberInitial(),
-                                color = Color.White,
-                                fontSize = 23.sp,
-                                fontWeight = FontWeight.Black
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(member.name.ifBlank { "Membre" }, fontSize = 21.sp, fontWeight = FontWeight.Black, color = Ink)
-                        Text(member.email.ifBlank { "Compte Google" }, fontSize = 14.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Surface(
-                        color = if (member.role == "admin") DeepGreen else SoftGrey,
-                        shape = RoundedCornerShape(50)
-                    ) {
-                        Text(
-                            if (member.role == "admin") "Admin" else "Membre",
-                            color = if (member.role == "admin") Color.White else Muted,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                        )
-                    }
-                }
-            }
+            MemberProfileCard(
+                member = member,
+                stats = state.memberStats(member.id),
+                canEdit = canEdit,
+                onClick = { editingMember = member }
+            )
         }
         item {
             Surface(color = Color(0xFFFFF3C9), shape = RoundedCornerShape(AppRadius), modifier = Modifier.fillMaxWidth()) {
@@ -2395,6 +2413,71 @@ fun MembersScreen(vm: MonFoyerViewModel) {
             },
             onDismiss = { confirmLeave = false }
         )
+    }
+}
+
+@Composable
+fun MemberProfileCard(member: Member, stats: MemberStats, canEdit: Boolean, onClick: () -> Unit) {
+    val accent = Color(member.color)
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(28.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+        shadowElevation = if (member.role == "admin") 2.dp else 0.dp,
+        modifier = Modifier.fillMaxWidth().clickable(enabled = canEdit, onClick = onClick)
+    ) {
+        Box(Modifier.padding(16.dp)) {
+            Canvas(Modifier.matchParentSize()) {
+                drawCircle(accent.copy(alpha = 0.10f), radius = 74.dp.toPx(), center = Offset(size.width - 20.dp.toPx(), 8.dp.toPx()))
+                drawCircle(Lemon.copy(alpha = 0.16f), radius = 34.dp.toPx(), center = Offset(18.dp.toPx(), size.height - 6.dp.toPx()))
+            }
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Surface(color = accent, shape = CircleShape, modifier = Modifier.size(62.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(member.name.memberInitial(), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(member.name.ifBlank { "Membre" }, fontSize = 23.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(member.email.ifBlank { "Compte Google" }, fontSize = 13.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    RoleBadge(member.role)
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    MemberStatChip("✅", stats.doneTasks.toString(), "faites", Modifier.weight(1f))
+                    MemberStatChip("🕒", stats.openTasks.toString(), "a faire", Modifier.weight(1f))
+                    MemberStatChip("🎬", stats.pendingRequests.toString(), "demandes", Modifier.weight(1f))
+                    MemberStatChip("🎂", stats.birthdaysAdded.toString(), "dates", Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RoleBadge(role: String) {
+    val admin = role == "admin"
+    Surface(color = if (admin) DeepGreen else SoftGrey, shape = RoundedCornerShape(50)) {
+        Text(
+            if (admin) "Admin" else "Membre",
+            color = if (admin) Color.White else Muted,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Black,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+        )
+    }
+}
+
+@Composable
+fun MemberStatChip(emoji: String, value: String, label: String, modifier: Modifier = Modifier) {
+    Surface(color = Cream, shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), modifier = modifier.height(58.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)) {
+            Text("$emoji $value", fontSize = 15.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1)
+            Text(label, fontSize = 10.sp, color = Muted, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -2884,11 +2967,26 @@ fun TaskFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
 fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val color = Color(task.color)
     val overdue = task.isOverdue()
+    val cardScale by animateFloatAsState(
+        targetValue = if (task.done) 0.985f else 1f,
+        label = "task-card-scale"
+    )
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (task.done) 0.76f else 1f,
+        label = "task-card-alpha"
+    )
+    val checkScale by animateFloatAsState(
+        targetValue = if (task.done) 1.12f else 1f,
+        label = "task-check-scale"
+    )
     Surface(
         color = if (overdue && !task.done) Color(0xFFFFF6F1) else Color.White,
         shape = RoundedCornerShape(AppRadius),
         border = androidx.compose.foundation.BorderStroke(1.5.dp, if (overdue && !task.done) Coral else CardBorder),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer(scaleX = cardScale, scaleY = cardScale, alpha = cardAlpha)
+            .clickable(onClick = onEdit)
     ) {
         Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
@@ -2900,7 +2998,7 @@ fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onEdit: () -> Unit, onDe
                     modifier = Modifier.size(48.dp).clickable(onClick = onToggle)
                 ) {
                     if (task.done) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.graphicsLayer(scaleX = checkScale, scaleY = checkScale)) {
                             Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = DeepGreen)
                         }
                     }
@@ -3899,6 +3997,15 @@ fun AppUiState.isCurrentUserAdmin(): Boolean =
 fun AppUiState.pendingRequestCount(): Int =
     if (isCurrentUserAdmin()) mediaRequests.count { it.status == "pending" }
     else mediaRequests.count { it.requesterId == currentUserId && it.status == "pending" }
+
+fun AppUiState.memberStats(memberId: String): MemberStats = MemberStats(
+    doneTasks = tasks.count { it.assigneeId == memberId && it.done },
+    openTasks = tasks.count { it.assigneeId == memberId && !it.done },
+    pendingRequests = mediaRequests.count { it.requesterId == memberId && it.status == "pending" },
+    birthdaysAdded = activity.count { item ->
+        item.actorId == memberId && item.text.lowercase(Locale.FRANCE).contains("anniversaire")
+    }
+)
 
 @Composable
 fun MediaRequestNotificationEffect(state: AppUiState) {
