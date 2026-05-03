@@ -1245,8 +1245,8 @@ fun BudgetScreen(vm: MonFoyerViewModel) {
     val paid = vm.state.bills.filter { it.paid }.sumOf { it.amount }
     val unpaidBills = vm.state.bills.filterNot { it.paid }
     val unpaid = unpaidBills.sumOf { it.amount }
-    val remaining = vm.state.monthlyBudget - unpaid
-    val progress = if (vm.state.monthlyBudget <= 0.0) 0f else (unpaid / vm.state.monthlyBudget).coerceIn(0.0, 1.0).toFloat()
+    val remaining = vm.state.monthlyBudget - total
+    val progress = if (vm.state.monthlyBudget <= 0.0) 0f else (total / vm.state.monthlyBudget).coerceIn(0.0, 1.0).toFloat()
     val filteredBills = when (filter) {
         "Payees" -> vm.state.bills.filter { it.paid }
         "Toutes" -> vm.state.bills
