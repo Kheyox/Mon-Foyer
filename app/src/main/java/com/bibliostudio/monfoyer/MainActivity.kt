@@ -1022,51 +1022,65 @@ fun AppHeader(
 fun Dashboard(vm: MonFoyerViewModel) {
     val state = vm.state
     val modules = listOf(
-        ModuleTile(Tab.Calendar, "Agenda", "Rendez-vous", state.events.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFE5A3), Color(0xFFFFBE73)), Icons.Filled.CalendarMonth, "📅", Color(0xFFE28B21)),
-        ModuleTile(Tab.Tasks, "Taches", "A faire", state.tasks.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFC9EFFF), Color(0xFF92D7F6)), Icons.Filled.CheckCircle, "✅", Color(0xFF2E89C9)),
-        ModuleTile(Tab.Shopping, "Courses", "Liste commune", state.shopping.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFD3F7DE), Color(0xFF85DFAF)), Icons.Filled.ShoppingCart, "🛒", Color(0xFF139567)),
-        ModuleTile(Tab.Requests, "Demandes", "Films & livres", state.pendingRequestCount().takeIf { it > 0 }?.toString(), listOf(Color(0xFFE5D8FF), Color(0xFFC9D9FF)), Icons.Filled.ViewList, "🎬", Color(0xFF6B63D8)),
-        ModuleTile(Tab.Birthdays, "Anniversaires", "A ne pas oublier", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD6E3), Color(0xFFD8CBFF)), Icons.Filled.Group, "🎂", Color(0xFFB256B4)),
-        ModuleTile(Tab.Notes, "Notes", "Pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD9B8), Color(0xFFFFB8A8)), Icons.Filled.EditNote, "📝", Clay),
-        ModuleTile(Tab.Members, "Foyer", "Membres & code", state.members.size.toString(), listOf(Color(0xFFD6F4EF), Color(0xFFBCE8F5)), Icons.Filled.Group, "🏡", DeepGreen)
+        ModuleTile(Tab.Calendar, "Agenda", "Les rendez-vous du foyer", state.events.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFE5A3), Color(0xFFFFBE73)), Icons.Filled.CalendarMonth, "📅", Color(0xFFE28B21)),
+        ModuleTile(Tab.Tasks, "Taches", "Ce qu'il reste a faire", state.tasks.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFC9EFFF), Color(0xFF92D7F6)), Icons.Filled.CheckCircle, "✅", Color(0xFF2E89C9)),
+        ModuleTile(Tab.Shopping, "Courses", "La liste commune du foyer", state.shopping.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFD3F7DE), Color(0xFF85DFAF)), Icons.Filled.ShoppingCart, "🛒", Color(0xFF139567)),
+        ModuleTile(Tab.Requests, "Demandes", "Films, series et livres", state.pendingRequestCount().takeIf { it > 0 }?.toString(), listOf(Color(0xFFE5D8FF), Color(0xFFC9D9FF)), Icons.Filled.ViewList, "🎬", Color(0xFF6B63D8)),
+        ModuleTile(Tab.Birthdays, "Anniversaires", "Les dates a ne pas oublier", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD6E3), Color(0xFFD8CBFF)), Icons.Filled.Group, "🎂", Color(0xFFB256B4)),
+        ModuleTile(Tab.Notes, "Notes", "Idees et pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD9B8), Color(0xFFFFB8A8)), Icons.Filled.EditNote, "📝", Clay),
+        ModuleTile(Tab.Members, "Foyer", "Membres, couleurs et invitation", state.members.size.toString(), listOf(Color(0xFFD6F4EF), Color(0xFFBCE8F5)), Icons.Filled.Group, "🏡", DeepGreen)
     )
-    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Column(Modifier.weight(1f)) {
-                Text("Tableau", fontSize = 40.sp, lineHeight = 39.sp, fontWeight = FontWeight.Black, color = Ink)
-                Text("du foyer", fontSize = 40.sp, lineHeight = 39.sp, fontWeight = FontWeight.Black, color = DeepGreen)
-            }
-            Surface(color = Lemon, shape = RoundedCornerShape(22.dp), modifier = Modifier.size(58.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("✨", fontSize = 27.sp)
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp).navigationBarsPadding()
+    ) {
+        item {
+            Surface(
+                color = Paper,
+                shape = RoundedCornerShape(30.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+                shadowElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(Modifier.padding(20.dp)) {
+                    Canvas(Modifier.matchParentSize()) {
+                        drawCircle(
+                            color = Mint.copy(alpha = 0.65f),
+                            radius = 82.dp.toPx(),
+                            center = Offset(size.width - 10.dp.toPx(), 12.dp.toPx())
+                        )
+                        drawCircle(
+                            color = Lemon.copy(alpha = 0.55f),
+                            radius = 42.dp.toPx(),
+                            center = Offset(18.dp.toPx(), size.height - 10.dp.toPx())
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Tableau du foyer", fontSize = 34.sp, lineHeight = 35.sp, fontWeight = FontWeight.Black, color = Ink)
+                            Spacer(Modifier.height(6.dp))
+                            Text("Tout le quotidien familial, clair et partage.", fontSize = 15.sp, lineHeight = 19.sp, color = Muted, fontWeight = FontWeight.Bold)
+                        }
+                        Text("🏡", fontSize = 42.sp)
+                    }
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text("Les petites choses du quotidien, rangees au meme endroit.", fontSize = 15.sp, lineHeight = 19.sp, color = Muted, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(14.dp))
-        HomeInsightStrip(state)
-        Spacer(Modifier.height(16.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-            modifier = Modifier.fillMaxSize().navigationBarsPadding()
-        ) {
-            gridItems(modules) { tile ->
-                ModuleCard(tile = tile, onClick = { vm.select(tile.tab) })
-            }
+        item { HomeInsightStrip(state) }
+        items(modules) { tile ->
+            ModuleCard(tile = tile, onClick = { vm.select(tile.tab) })
         }
+        item { Spacer(Modifier.height(76.dp)) }
     }
 }
 
 @Composable
 fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
-    val titleSize = if (tile.title.length > 12) 21.sp else 24.sp
     Box(
         modifier = Modifier
-            .height(168.dp)
-            .clip(RoundedCornerShape(28.dp))
+            .fillMaxWidth()
+            .height(106.dp)
+            .clip(RoundedCornerShape(26.dp))
             .background(androidx.compose.ui.graphics.Brush.linearGradient(tile.colors))
             .clickable(onClick = onClick)
             .padding(14.dp)
@@ -1074,51 +1088,36 @@ fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
         Canvas(Modifier.matchParentSize()) {
             drawCircle(
                 color = Color.White.copy(alpha = 0.24f),
-                radius = 76.dp.toPx(),
-                center = Offset(size.width - 8.dp.toPx(), size.height + 10.dp.toPx())
+                radius = 88.dp.toPx(),
+                center = Offset(size.width - 4.dp.toPx(), size.height + 8.dp.toPx())
             )
             drawCircle(
-                color = Color.White.copy(alpha = 0.22f),
-                radius = 34.dp.toPx(),
-                center = Offset(18.dp.toPx(), 24.dp.toPx())
-            )
-            drawCircle(
-                color = tile.accent.copy(alpha = 0.16f),
-                radius = 42.dp.toPx(),
-                center = Offset(size.width - 26.dp.toPx(), 32.dp.toPx())
+                color = tile.accent.copy(alpha = 0.12f),
+                radius = 70.dp.toPx(),
+                center = Offset(18.dp.toPx(), 18.dp.toPx())
             )
         }
-        Surface(color = Paper.copy(alpha = 0.84f), shape = RoundedCornerShape(18.dp), shadowElevation = 1.dp) {
-            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                Icon(tile.icon, contentDescription = null, tint = tile.accent, modifier = Modifier.size(27.dp))
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Paper.copy(alpha = 0.90f), shape = RoundedCornerShape(22.dp), shadowElevation = 1.dp) {
+                Box(Modifier.size(70.dp), contentAlignment = Alignment.Center) {
+                    Text(tile.emoji, fontSize = 35.sp)
+                }
             }
-        }
-        Text(
-            tile.emoji,
-            fontSize = 46.sp,
-            modifier = Modifier.align(Alignment.CenterEnd).offset(x = 4.dp, y = 6.dp)
-        )
-        Column(
-            Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .padding(end = 30.dp)
-        ) {
-            Text(tile.subtitle, fontSize = 12.sp, fontWeight = FontWeight.Black, color = tile.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(3.dp))
-            Text(
-                tile.title,
-                fontSize = titleSize,
-                lineHeight = (titleSize.value + 2).sp,
-                fontWeight = FontWeight.Black,
-                color = Ink,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        tile.count?.let {
-            Surface(color = tile.accent, shape = CircleShape, shadowElevation = 3.dp, modifier = Modifier.align(Alignment.TopEnd)) {
-                Text(it, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp), fontSize = 15.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(tile.icon, contentDescription = null, tint = tile.accent, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text(tile.title, fontSize = 24.sp, lineHeight = 26.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.height(5.dp))
+                Text(tile.subtitle, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, color = Ink.copy(alpha = 0.68f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.width(10.dp))
+            tile.count?.let {
+                Surface(color = tile.accent, shape = RoundedCornerShape(18.dp), shadowElevation = 2.dp) {
+                    Text(it, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp), fontSize = 15.sp, fontWeight = FontWeight.Black, color = Color.White)
+                }
             }
         }
     }
