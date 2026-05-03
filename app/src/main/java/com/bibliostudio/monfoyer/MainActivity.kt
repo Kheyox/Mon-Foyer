@@ -162,6 +162,15 @@ data class EventType(val id: String = "", val name: String = "", val icon: Strin
 data class Note(val id: String = "", val title: String = "", val body: String = "")
 data class HouseholdTask(val id: String = "", val title: String = "", val assigneeId: String = "", val assigneeName: String = "", val done: Boolean = false, val color: Long = 0xFF174C43, val description: String = "", val dueDate: String = "", val emoji: String = "🙂")
 data class Birthday(val id: String = "", val name: String = "", val date: String = "", val birthYear: Int = 0)
+data class MediaRequest(
+    val id: String = "",
+    val title: String = "",
+    val kind: String = "Livre",
+    val requesterId: String = "",
+    val requesterName: String = "",
+    val status: String = "pending",
+    val adminNote: String = ""
+)
 data class UpdateInfo(
     val versionCode: Int = 0,
     val versionName: String = "",
@@ -182,6 +191,7 @@ data class AppUiState(
     val notes: List<Note> = emptyList(),
     val tasks: List<HouseholdTask> = emptyList(),
     val birthdays: List<Birthday> = emptyList(),
+    val mediaRequests: List<MediaRequest> = emptyList(),
     val monthlyBudget: Double = 0.0,
     val selectedTab: Tab = Tab.Home,
     val loading: Boolean = true,
@@ -196,6 +206,7 @@ enum class Tab(val label: String, val icon: ImageVector) {
     Tasks("Taches", Icons.Filled.CheckCircle),
     Budget("Budget", Icons.Filled.Payments),
     Calendar("Agenda", Icons.Filled.CalendarMonth),
+    Requests("Demandes", Icons.Filled.ViewList),
     Birthdays("Anniversaires", Icons.Filled.Group),
     Notes("Notes", Icons.Filled.EditNote),
     Members("Foyer", Icons.Filled.Group)
@@ -506,6 +517,36 @@ class MonFoyerViewModel : ViewModel() {
             .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
     }
 
+    fun addMediaRequest(title: String, kind: String) {
+        val household = state.household ?: return
+        val user = auth.currentUser ?: return
+        val cleanTitle = title.trim()
+        if (cleanTitle.isBlank()) return
+        val requesterName = state.members.firstOrNull { it.id == user.uid }?.name
+            ?: state.userName.ifBlank { "Membre" }
+        db.collection("households").document(household.id).collection("requests")
+            .add(
+                mapOf(
+                    "title" to cleanTitle,
+                    "kind" to kind,
+                    "requesterId" to user.uid,
+                    "requesterName" to requesterName,
+                    "status" to "pending",
+                    "adminNote" to "",
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            .addOnFailureListener { setError(it.message ?: "Demande impossible.") }
+    }
+
+    fun updateMediaRequestStatus(request: MediaRequest, status: String) {
+        val household = state.household ?: return
+        if (!state.isCurrentUserAdmin()) return
+        db.collection("households").document(household.id).collection("requests").document(request.id)
+            .update(mapOf("status" to status, "updatedAt" to FieldValue.serverTimestamp()))
+            .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
+    }
+
     fun toggleShopping(item: ShoppingItem) = update("shoppingItems", item.id, "done", !item.done)
     fun toggleShoppingFavorite(item: ShoppingItem) = update("shoppingItems", item.id, "favorite", !item.favorite)
     fun toggleBill(bill: Bill) = update("bills", bill.id, "paid", !bill.paid)
@@ -708,6 +749,19 @@ class MonFoyerViewModel : ViewModel() {
                 )
             }.orEmpty())
         }
+        listeners += householdRef.collection("requests").addSnapshotListener { snap, _ ->
+            state = state.copy(mediaRequests = snap?.documents?.map {
+                MediaRequest(
+                    id = it.id,
+                    title = it.getString("title") ?: "",
+                    kind = it.getString("kind") ?: "Livre",
+                    requesterId = it.getString("requesterId") ?: "",
+                    requesterName = it.getString("requesterName") ?: "",
+                    status = it.getString("status") ?: "pending",
+                    adminNote = it.getString("adminNote") ?: ""
+                )
+            }.orEmpty())
+        }
     }
 
     private fun clearListeners(keepFirst: Boolean = false) {
@@ -848,6 +902,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
     LaunchedEffect(vm.state.events, vm.state.tasks, vm.state.birthdays) {
         ReminderScheduler.refresh(context, vm.state.events, vm.state.tasks, vm.state.birthdays)
     }
+    MediaRequestNotificationEffect(vm.state)
     BackHandler(enabled = vm.state.selectedTab != Tab.Home) {
         vm.select(Tab.Home)
     }
@@ -868,6 +923,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
                 Tab.Tasks -> TasksScreen(vm)
                 Tab.Budget -> BudgetScreen(vm)
                 Tab.Calendar -> AgendaScreen(vm)
+                Tab.Requests -> RequestsScreen(vm)
                 Tab.Birthdays -> BirthdaysScreen(vm)
                 Tab.Notes -> NotesScreen(vm)
                 Tab.Members -> MembersScreen(vm)
@@ -946,6 +1002,7 @@ fun Dashboard(vm: MonFoyerViewModel) {
         ModuleTile(Tab.Tasks, "Taches", "A faire ensemble", state.tasks.count { !it.done }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFBDEBFF), Color(0xFF90D6F7)), Icons.Filled.CheckCircle, "✅", Color(0xFF3C93D8)),
         ModuleTile(Tab.Notes, "Notes", "Idees et pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFB6C7), Color(0xFFFFD7E1)), Icons.Filled.EditNote, "📝", Color(0xFFE85F8C)),
         ModuleTile(Tab.Budget, "Budget", "Factures et reste", null, listOf(Color(0xFFFFC6A8), Color(0xFFFFE0A8)), Icons.Filled.Payments, "💶", Color(0xFFE07A35)),
+        ModuleTile(Tab.Requests, "Demandes", "Livres et films", state.pendingRequestCount().takeIf { it > 0 }?.toString(), listOf(Color(0xFFC7D8FF), Color(0xFFE5D0FF)), Icons.Filled.ViewList, "🎬", Color(0xFF6D6FE8)),
         ModuleTile(Tab.Birthdays, "Anniv.", "Dates importantes", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFD8C8FF), Color(0xFFFFD2EE)), Icons.Filled.Group, "🎂", Color(0xFF8B6CE8)),
         ModuleTile(Tab.Members, "Foyer", "Membres et code", state.members.size.toString(), listOf(Color(0xFFC8F0EA), Color(0xFFAEDFF3)), Icons.Filled.Group, "🏡", DeepGreen)
     )
@@ -1094,7 +1151,7 @@ fun HomeMenu(
     onSignOut: () -> Unit
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = Color.White) {
-        listOf(Tab.Home, Tab.Shopping, Tab.Calendar, Tab.Tasks, Tab.Birthdays, Tab.Budget, Tab.Notes, Tab.Members).forEach { tab ->
+        listOf(Tab.Home, Tab.Shopping, Tab.Calendar, Tab.Tasks, Tab.Requests, Tab.Birthdays, Tab.Budget, Tab.Notes, Tab.Members).forEach { tab ->
             DropdownMenuItem(
                 text = { Text(tab.label, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
                 leadingIcon = { Icon(tab.icon, contentDescription = null, tint = DeepGreen) },
@@ -1473,6 +1530,194 @@ fun BudgetBillRow(bill: Bill, onToggle: () -> Unit, onEdit: () -> Unit, onDelete
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun RequestsScreen(vm: MonFoyerViewModel) {
+    var selectedMemberId by remember(vm.state.members) {
+        mutableStateOf(vm.state.members.firstOrNull { it.id == vm.state.currentUserId }?.id ?: vm.state.members.firstOrNull()?.id.orEmpty())
+    }
+    var kind by remember { mutableStateOf("Livre") }
+    var showAdd by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf<MediaRequest?>(null) }
+    val members = vm.state.members.ifEmpty { listOf(Member(vm.state.currentUserId, vm.state.userName.ifBlank { "Moi" })) }
+    val selectedMember = members.firstOrNull { it.id == selectedMemberId } ?: members.first()
+    val requests = vm.state.mediaRequests
+        .filter { it.requesterId == selectedMember.id && it.kind == kind }
+        .sortedWith(compareBy<MediaRequest> { it.status != "pending" }.thenBy { it.title.lowercase(Locale.FRANCE) })
+    val isAdmin = vm.state.isCurrentUserAdmin()
+
+    ModulePanel(title = "Demandes") {
+        item {
+            Text("Par personne", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                userScrollEnabled = false,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.height((((members.size + 1) / 2) * 54).dp)
+            ) {
+                gridItems(members) { member ->
+                    MemberRequestTab(
+                        member = member,
+                        selected = selectedMember.id == member.id,
+                        pendingCount = vm.state.mediaRequests.count { it.requesterId == member.id && it.status == "pending" },
+                        onClick = { selectedMemberId = member.id }
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                TaskFilterChip("Livres", kind == "Livre") { kind = "Livre" }
+                TaskFilterChip("Films / series", kind == "FilmSerie") { kind = "FilmSerie" }
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text(selectedMember.name.ifBlank { "Membre" }, fontSize = 28.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black, color = Ink)
+                    Text(if (kind == "Livre") "Demandes de livres" else "Demandes de films et series", color = Muted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+                if (selectedMember.id == vm.state.currentUserId) {
+                    Surface(color = DeepGreen, shape = CircleShape, modifier = Modifier.size(58.dp).clickable { showAdd = true }) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Add, contentDescription = "Ajouter", tint = Color.White, modifier = Modifier.size(32.dp))
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+        if (requests.isEmpty()) {
+            item {
+                EmptyState(
+                    emoji = if (kind == "Livre") "📚" else "🎬",
+                    title = "Aucune demande",
+                    body = if (selectedMember.id == vm.state.currentUserId) "Ajoute une idee, elle apparaitra ici pour l'admin." else "Cette personne n'a rien demande dans cette categorie."
+                )
+            }
+        }
+        items(requests) { request ->
+            MediaRequestCard(
+                request = request,
+                canModerate = isAdmin && request.status == "pending",
+                canDelete = isAdmin || request.requesterId == vm.state.currentUserId,
+                onApprove = { vm.updateMediaRequestStatus(request, "approved") },
+                onReject = { vm.updateMediaRequestStatus(request, "rejected") },
+                onDelete = { confirmDelete = request }
+            )
+        }
+    }
+    if (showAdd) {
+        AddMediaRequestSheet(
+            kind = kind,
+            onDismiss = { showAdd = false },
+            onAdd = { title ->
+                vm.addMediaRequest(title, kind)
+                showAdd = false
+            }
+        )
+    }
+    confirmDelete?.let { request ->
+        ConfirmDeleteDialog(
+            title = "Supprimer la demande ?",
+            message = "${request.title} sera retire de la liste.",
+            onConfirm = {
+                vm.delete("requests", request.id)
+                confirmDelete = null
+            },
+            onDismiss = { confirmDelete = null }
+        )
+    }
+}
+
+@Composable
+fun MemberRequestTab(member: Member, selected: Boolean, pendingCount: Int, onClick: () -> Unit) {
+    Surface(
+        color = if (selected) DeepGreen else Color.White,
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) DeepGreen else CardBorder),
+        modifier = Modifier.fillMaxWidth().height(46.dp).clickable(onClick = onClick)
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color(member.color), shape = CircleShape, modifier = Modifier.size(26.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(member.name.take(1).uppercase().ifBlank { "?" }, color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(member.name.ifBlank { "Membre" }, color = if (selected) Color.White else Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (pendingCount > 0) {
+                Text(pendingCount.toString(), color = if (selected) Lemon else DeepGreen, fontSize = 13.sp, fontWeight = FontWeight.Black)
+            }
+        }
+    }
+}
+
+@Composable
+fun MediaRequestCard(
+    request: MediaRequest,
+    canModerate: Boolean,
+    canDelete: Boolean,
+    onApprove: () -> Unit,
+    onReject: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val statusColor = when (request.status) {
+        "approved" -> DeepGreen
+        "rejected" -> Coral
+        else -> Color(0xFFE39318)
+    }
+    val statusText = when (request.status) {
+        "approved" -> "Valide"
+        "rejected" -> "Refuse"
+        else -> "En attente"
+    }
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(AppRadius),
+        border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+                Text(if (request.kind == "Livre") "📚" else "🎬", fontSize = 32.sp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(request.title, fontSize = 22.sp, lineHeight = 25.sp, fontWeight = FontWeight.Black, color = Ink)
+                    Text("Demande de ${request.requesterName.ifBlank { "Membre" }}", fontSize = 14.sp, color = Muted, fontWeight = FontWeight.Bold)
+                }
+                Surface(color = statusColor.copy(alpha = 0.12f), shape = RoundedCornerShape(50)) {
+                    Text(statusText, color = statusColor, fontSize = 13.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+                }
+            }
+            if (canModerate || canDelete) {
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    if (canModerate) {
+                        RequestActionButton("Valider", DeepGreen, Modifier.weight(1f), onApprove)
+                        RequestActionButton("Refuser", Coral, Modifier.weight(1f), onReject)
+                    }
+                    if (canDelete) {
+                        Surface(color = SoftGrey, shape = RoundedCornerShape(14.dp), modifier = Modifier.size(48.dp).clickable(onClick = onDelete)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Supprimer", tint = Muted)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RequestActionButton(text: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(color = color, shape = RoundedCornerShape(14.dp), modifier = modifier.height(48.dp).clickable(onClick = onClick)) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(text, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black)
         }
     }
 }
@@ -2077,6 +2322,34 @@ fun AddBillSheet(onDismiss: () -> Unit, onAdd: (String, String) -> Unit) {
             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(25.dp))
             Spacer(Modifier.width(10.dp))
             Text("Ajouter", fontSize = 20.sp, fontWeight = FontWeight.Black)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddMediaRequestSheet(kind: String, onDismiss: () -> Unit, onAdd: (String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    val label = if (kind == "Livre") "Nom du livre" else "Nom du film ou de la serie"
+    EditSheetScaffold(title = if (kind == "Livre") "Demander un livre" else "Demander un film", emoji = if (kind == "Livre") "📚" else "🎬", onDismiss = onDismiss) {
+        Text("Titre", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
+        Spacer(Modifier.height(8.dp))
+        SoftInput(title, { title = it }, label, leadingIcon = Icons.Filled.EditNote)
+        Spacer(Modifier.height(22.dp))
+        Button(
+            onClick = { onAdd(title) },
+            enabled = title.isNotBlank(),
+            shape = RoundedCornerShape(FieldRadius),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = DeepGreen,
+                disabledContainerColor = Color(0xFFE1E1E1),
+                disabledContentColor = Muted
+            ),
+            modifier = Modifier.fillMaxWidth().height(64.dp)
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(25.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("Envoyer la demande", fontSize = 20.sp, fontWeight = FontWeight.Black)
         }
     }
 }
@@ -3318,6 +3591,53 @@ fun LocalDate.taskDueLabel(): String = format(DateTimeFormatter.ISO_DATE).taskDu
 fun moneyText(value: Double): String = String.format(Locale.FRANCE, "%.2f EUR", value)
 
 fun String.parseMoneyOrNull(): Double? = trim().replace(',', '.').toDoubleOrNull()
+
+fun AppUiState.isCurrentUserAdmin(): Boolean =
+    members.firstOrNull { it.id == currentUserId }?.role == "admin" || household?.ownerId == currentUserId
+
+fun AppUiState.pendingRequestCount(): Int =
+    if (isCurrentUserAdmin()) mediaRequests.count { it.status == "pending" }
+    else mediaRequests.count { it.requesterId == currentUserId && it.status == "pending" }
+
+@Composable
+fun MediaRequestNotificationEffect(state: AppUiState) {
+    val context = LocalContext.current
+    var ready by remember { mutableStateOf(false) }
+    var previous by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    LaunchedEffect(state.mediaRequests, state.currentUserId, state.members) {
+        val current = state.mediaRequests.associate { it.id to it.status }
+        if (ready) {
+            val isAdmin = state.isCurrentUserAdmin()
+            state.mediaRequests.forEach { request ->
+                val oldStatus = previous[request.id]
+                if (oldStatus == null && isAdmin && request.requesterId != state.currentUserId && request.status == "pending") {
+                    ReminderReceiver.showNow(
+                        context,
+                        request.id.hashCode().absoluteValue,
+                        "Nouvelle demande ${if (request.kind == "Livre") "livre" else "film/serie"}",
+                        "${request.requesterName.ifBlank { "Un membre" }} demande : ${request.title}"
+                    )
+                } else if (oldStatus != null && oldStatus != request.status && request.requesterId == state.currentUserId && request.status != "pending") {
+                    ReminderReceiver.showNow(
+                        context,
+                        request.id.hashCode().absoluteValue,
+                        "Demande ${requestStatusLabel(request.status).lowercase(Locale.FRANCE)}",
+                        request.title
+                    )
+                }
+            }
+        } else {
+            ready = true
+        }
+        previous = current
+    }
+}
+
+fun requestStatusLabel(status: String): String = when (status) {
+    "approved" -> "Validee"
+    "rejected" -> "Refusee"
+    else -> "En attente"
+}
 
 fun HouseholdTask.isOverdue(): Boolean {
     val date = runCatching { LocalDate.parse(dueDate) }.getOrNull() ?: return false

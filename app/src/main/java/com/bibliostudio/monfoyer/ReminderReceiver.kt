@@ -55,5 +55,13 @@ class ReminderReceiver : BroadcastReceiver() {
         const val EXTRA_ID = "notification_id"
         const val EXTRA_TITLE = "notification_title"
         const val EXTRA_BODY = "notification_body"
+
+        fun showNow(context: Context, id: Int, title: String, body: String) {
+            val intent = Intent(context, ReminderReceiver::class.java)
+                .putExtra(EXTRA_ID, id)
+                .putExtra(EXTRA_TITLE, title)
+                .putExtra(EXTRA_BODY, body)
+            ReminderReceiver().onReceive(context, intent)
+        }
     }
 }
