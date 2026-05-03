@@ -1,6 +1,7 @@
 package com.bibliostudio.monfoyer
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -277,9 +278,9 @@ class MonFoyerViewModel : ViewModel() {
         state = state.copy(selectedTab = tab)
     }
 
-    fun checkForUpdate() {
+    fun checkForUpdate(context: Context? = null, silent: Boolean = false, notify: Boolean = false) {
         if (state.checkingUpdate) return
-        state = state.copy(checkingUpdate = true, error = null)
+        state = state.copy(checkingUpdate = true, error = if (silent) state.error else null)
         kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
             runCatching {
                 val json = URL(UPDATE_MANIFEST_URL).readText()
@@ -293,21 +294,37 @@ class MonFoyerViewModel : ViewModel() {
             }.onSuccess { info ->
                 withContext(Dispatchers.Main) {
                     val update = info.takeIf { it.versionCode > BuildConfig.VERSION_CODE && it.apkUrl.isNotBlank() }
+                    if (update != null && notify && context != null) {
+                        notifyUpdateOnce(context, update)
+                    }
                     state = state.copy(
                         checkingUpdate = false,
                         updateInfo = update,
-                        error = if (update == null) "Mon Foyer est deja a jour." else null
+                        error = if (update == null && !silent) "Mon Foyer est deja a jour." else state.error
                     )
                 }
             }.onFailure {
                 withContext(Dispatchers.Main) {
                     state = state.copy(
                         checkingUpdate = false,
-                        error = "Verification impossible. Le fichier de mise a jour doit etre public."
+                        error = if (silent) state.error else "Verification impossible. Le fichier de mise a jour doit etre public."
                     )
                 }
             }
         }
+    }
+
+    private fun notifyUpdateOnce(context: Context, update: UpdateInfo) {
+        val prefs = context.getSharedPreferences("mon_foyer_updates", Context.MODE_PRIVATE)
+        val key = "notified_version_code"
+        if (prefs.getInt(key, 0) >= update.versionCode) return
+        ReminderReceiver.showNow(
+            context,
+            90000 + update.versionCode,
+            "Mise a jour Mon Foyer",
+            "La version ${update.versionName} est disponible."
+        )
+        prefs.edit().putInt(key, update.versionCode).apply()
     }
 
     fun clearUpdateInfo() {
@@ -900,6 +917,9 @@ fun HouseholdGate(vm: MonFoyerViewModel) {
 fun HomeShell(vm: MonFoyerViewModel) {
     val context = LocalContext.current as ComponentActivity
     NotificationPermissionEffect()
+    LaunchedEffect(Unit) {
+        vm.checkForUpdate(context, silent = true, notify = true)
+    }
     LaunchedEffect(vm.state.events, vm.state.tasks, vm.state.birthdays) {
         ReminderScheduler.refresh(context, vm.state.events, vm.state.tasks, vm.state.birthdays)
     }
@@ -914,7 +934,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
                 householdName = vm.state.household?.name ?: "Mon Foyer",
                 onHome = { vm.select(Tab.Home) },
                 onSelect = { vm.select(it) },
-                onCheckUpdate = { vm.checkForUpdate() },
+                onCheckUpdate = { vm.checkForUpdate(context) },
                 onSignOut = { vm.signOut(context) }
             )
             vm.state.error?.let { ErrorText(it, Modifier.padding(horizontal = 24.dp)) }
