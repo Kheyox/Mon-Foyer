@@ -1,0 +1,137 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge feature branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin ${{ github.ref_name }}
+          git merge origin/${{ github.ref_name }} --no-ff -m "chore: merge ${{ github.ref_name }}"
+
+      - name: Bump version
+        id: version
+        shell: bash
+        run: |
+          CODE=$(grep 'versionCode' app/build.gradle.kts | head -1 | sed 's/.*versionCode = \([0-9]*\).*/\1/')
+          NAME=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*versionName = "\(.*\)".*/\1/')
+          NEW_CODE=$((CODE + 1))
+          MAJOR=$(echo "$NAME" | cut -d. -f1)
+          MINOR=$(echo "$NAME" | cut -d. -f2)
+          PATCH=$(echo "$NAME" | cut -d. -f3)
+          NEW_NAME="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          sed -i "s/versionCode = ${CODE}/versionCode = ${NEW_CODE}/" app/build.gradle.kts
+          sed -i "s/versionName = \"${NAME}\"/versionName = \"${NEW_NAME}\"/" app/build.gradle.kts
+          echo "code=${NEW_CODE}" >> "$GITHUB_OUTPUT"
+          echo "name=${NEW_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump
+        run: |
+          git add app/build.gradle.kts
+          git commit -m "chore: bump version to ${{ steps.version.outputs.name }}"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+
+      - name: Decode Firebase config
+        if: ${{ env.GOOGLE_SERVICES_JSON_BASE64 != '' }}
+        run: echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+
+      - name: Decode upload keystore
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
+
+      - name: Check release signing secrets
+        shell: bash
+        run: |
+          test -f upload-keystore.jks
+          test -n "${ANDROID_KEYSTORE_PASSWORD}"
+          test -n "${ANDROID_KEY_ALIAS}"
+          test -n "${ANDROID_KEY_PASSWORD}"
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Build release APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle assembleRelease
+
+      - name: Prepare APK
+        shell: bash
+        run: |
+          mkdir -p release
+          cp app/build/outputs/apk/release/app-release.apk "release/mon-foyer-${{ steps.version.outputs.name }}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mon-foyer-release-apk
+          path: release/*.apk
+
+      - name: Generate update.json
+        shell: bash
+        run: |
+          VER_CODE="${{ steps.version.outputs.code }}"
+          VER_NAME="${{ steps.version.outputs.name }}"
+          APK_URL="https://github.com/Kheyox/Mon-Foyer/releases/download/v${VER_NAME}/mon-foyer-${VER_NAME}.apk"
+          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "apkUrl": "%s",\n  "notes": ""\n}\n' \
+            "$VER_CODE" "$VER_NAME" "$APK_URL" > update.json
+
+      - name: Commit update.json
+        run: |
+          git add update.json
+          git diff --cached --quiet || git commit -m "chore: update.json pour v${{ steps.version.outputs.name }}"
+
+      - name: Tag and push
+        run: |
+          git tag "v${{ steps.version.outputs.name }}"
+          git push origin HEAD:main
+          git push origin "v${{ steps.version.outputs.name }}"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          name: Mon Foyer v${{ steps.version.outputs.name }}
+          files: release/*.apk
+          body: |
+            Version APK familiale de Mon Foyer.
