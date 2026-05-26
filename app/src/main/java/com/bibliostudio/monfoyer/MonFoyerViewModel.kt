@@ -556,7 +556,7 @@ class MonFoyerViewModel : ViewModel() {
             .apply()
     }
 
-    fun updateMember(memberId: String, name: String, color: Long, role: String = "") {
+    fun updateMember(memberId: String, name: String, color: Long, role: String = "", avatar: String = "") {
         val household = state.household ?: return
         val canEdit = state.isCurrentUserAdmin() || memberId == state.currentUserId
         if (!canEdit) return
@@ -564,6 +564,7 @@ class MonFoyerViewModel : ViewModel() {
         val values = mutableMapOf<String, Any>(
             "name" to cleanName,
             "color" to color,
+            "avatar" to avatar,
             "updatedAt" to FieldValue.serverTimestamp()
         )
         if (state.isCurrentUserAdmin() && memberId != state.currentUserId && role in listOf("admin", "member")) {
