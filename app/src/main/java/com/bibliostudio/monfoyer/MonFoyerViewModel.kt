@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
 import java.time.LocalDate
@@ -36,6 +37,11 @@ class MonFoyerViewModel : ViewModel() {
     private var listeners = mutableListOf<ListenerRegistration>()
     var state by mutableStateOf(AppUiState())
         private set
+    private var appContext: Context? = null
+
+    fun setAppContext(context: Context) {
+        appContext = context.applicationContext
+    }
 
     init {
         // Point 2: Mode offline Firestore
@@ -301,8 +307,8 @@ class MonFoyerViewModel : ViewModel() {
 
     fun addNote(title: String, body: String) = add("notes", mapOf("title" to title, "body" to body)) { "a ajoute une note" }
 
-    // Point 4f: addTask accepts repeatInterval
-    fun addTask(title: String, description: String, dueDate: String, emoji: String, member: Member?, repeatInterval: String = "none") {
+    // Point 4f: addTask accepts repeatInterval and priority
+    fun addTask(title: String, description: String, dueDate: String, emoji: String, member: Member?, repeatInterval: String = "none", priority: String = "normal") {
         if (title.isBlank()) return
         add(
             "tasks",
@@ -315,13 +321,14 @@ class MonFoyerViewModel : ViewModel() {
                 "assigneeName" to (member?.name ?: "A assigner"),
                 "color" to (member?.color ?: memberColorLong(title)),
                 "done" to false,
-                "repeatInterval" to repeatInterval
+                "repeatInterval" to repeatInterval,
+                "priority" to priority
             )
         ) { "a ajoute la tache $title" }
     }
 
-    // Point 4d: updateTask accepts repeatInterval
-    fun updateTask(taskId: String, title: String, description: String, dueDate: String, emoji: String, member: Member?, repeatInterval: String = "none") {
+    // Point 4d: updateTask accepts repeatInterval and priority
+    fun updateTask(taskId: String, title: String, description: String, dueDate: String, emoji: String, member: Member?, repeatInterval: String = "none", priority: String = "normal") {
         if (title.isBlank()) return
         val household = state.household ?: return
         db.collection("households").document(household.id).collection("tasks").document(taskId)
@@ -335,6 +342,7 @@ class MonFoyerViewModel : ViewModel() {
                     "assigneeName" to (member?.name ?: "A assigner"),
                     "color" to (member?.color ?: memberColorLong(title)),
                     "repeatInterval" to repeatInterval,
+                    "priority" to priority,
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             )
@@ -343,6 +351,7 @@ class MonFoyerViewModel : ViewModel() {
 
     fun addBirthday(name: String, date: LocalDate, birthYear: String) {
         if (name.isBlank()) return
+        val householdId = state.household?.id ?: return
         add(
             "birthdays",
             mapOf(
@@ -351,6 +360,21 @@ class MonFoyerViewModel : ViewModel() {
                 "birthYear" to (birthYear.toIntOrNull() ?: 0)
             )
         ) { "a ajoute l'anniversaire de ${name.trim()}" }
+        // Auto-create a recurring annual event for the birthday
+        val eventData = hashMapOf<String, Any>(
+            "title" to "${name.trim()} 🎂",
+            "date" to date.format(DateTimeFormatter.ISO_DATE),
+            "allDay" to true,
+            "time" to "00:00",
+            "owner" to "Tout le foyer",
+            "typeName" to "Anniversaire",
+            "typeIcon" to "🎂",
+            "typeColor" to 0xFFFF6B6BL,
+            "recurrence" to "Annuelle",
+            "description" to "Anniversaire de ${name.trim()}"
+        )
+        db.collection("households").document(householdId)
+            .collection("events").add(eventData)
         refreshBirthdays()
     }
 
@@ -406,10 +430,17 @@ class MonFoyerViewModel : ViewModel() {
     fun toggleShoppingFavorite(item: ShoppingItem) = update("shoppingItems", item.id, "favorite", !item.favorite)
     fun toggleBill(bill: Bill) = update("bills", bill.id, "paid", !bill.paid)
 
-    // Point 4e: toggleTask with recurrence support
+    // Point 4e: toggleTask with recurrence support and completedAt tracking
     fun toggleTask(task: HouseholdTask) {
         val newValue = !task.done
-        update("tasks", task.id, "done", newValue)
+        val household = state.household ?: return
+        val updates: Map<String, Any> = if (newValue) {
+            mapOf("done" to true, "completedAt" to System.currentTimeMillis())
+        } else {
+            mapOf("done" to false, "completedAt" to 0L)
+        }
+        db.collection("households").document(household.id).collection("tasks").document(task.id)
+            .update(updates)
         logActivity(if (newValue) "a termine la tache ${task.title}" else "a remis la tache ${task.title} a faire")
         if (newValue && task.repeatInterval != "none") {
             scheduleNextRecurrence(task)
@@ -498,6 +529,31 @@ class MonFoyerViewModel : ViewModel() {
             batch.delete(db.collection("households").document(household.id).collection("shoppingItems").document(item.id))
         }
         batch.commit().addOnFailureListener { setError(it.message ?: "Suppression impossible.") }
+    }
+
+    fun addSuggestion(item: ShoppingItem) {
+        val householdId = state.household?.id ?: return
+        val newItem = hashMapOf<String, Any>(
+            "name" to item.name,
+            "done" to false,
+            "quantity" to item.quantity,
+            "category" to item.category,
+            "favorite" to true
+        )
+        db.collection("households").document(householdId)
+            .collection("shoppingItems").add(newItem)
+    }
+
+    private fun writeWidgetData(context: Context?) {
+        val ctx = context ?: appContext ?: return
+        val today = java.time.LocalDate.now().format(DateTimeFormatter.ISO_DATE)
+        val pendingTasks = state.tasks.filter { !it.done }.map { it.title }
+        val todayEvents = state.events.filter { it.date == today }.map { it.title }
+        val prefs = ctx.getSharedPreferences("widget_data", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("tasks_today", JSONArray(pendingTasks).toString())
+            .putString("events_today", JSONArray(todayEvents).toString())
+            .apply()
     }
 
     fun updateMember(memberId: String, name: String, color: Long, role: String = "") {
@@ -649,6 +705,7 @@ class MonFoyerViewModel : ViewModel() {
                     recurrence = it.getString("recurrence") ?: "Aucune"
                 )
             }.orEmpty())
+            writeWidgetData(null)
         }
         listeners += householdRef.collection("notes").addSnapshotListener { snap, _ ->
             state = state.copy(notes = snap?.documents?.map { Note(it.id, it.getString("title") ?: "", it.getString("body") ?: "") }.orEmpty())
@@ -665,9 +722,12 @@ class MonFoyerViewModel : ViewModel() {
                     description = it.getString("description") ?: "",
                     dueDate = it.getString("dueDate") ?: "",
                     emoji = it.getString("emoji") ?: "🙂",
-                    repeatInterval = it.getString("repeatInterval") ?: "none"
+                    repeatInterval = it.getString("repeatInterval") ?: "none",
+                    priority = it.getString("priority") ?: "normal",
+                    completedAt = it.getLong("completedAt") ?: 0L
                 )
             }.orEmpty())
+            writeWidgetData(null)
         }
         listeners += householdRef.collection("requests").addSnapshotListener { snap, _ ->
             state = state.copy(mediaRequests = snap?.documents?.map {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -62,6 +63,25 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+fun priorityOrder(priority: String): Int = when (priority) {
+    "high" -> 0
+    "normal" -> 1
+    "low" -> 2
+    else -> 1
+}
+
+fun priorityColor(priority: String) = when (priority) {
+    "high" -> PriorityHigh
+    "low" -> PriorityLow
+    else -> PriorityNormal
+}
+
+fun priorityLabel(priority: String) = when (priority) {
+    "high" -> "🔴 Haute"
+    "low" -> "⚫ Basse"
+    else -> "🟢 Normale"
+}
+
 @Composable
 fun TasksScreen(vm: MonFoyerViewModel) {
     var showAddSheet by remember { mutableStateOf(false) }
@@ -69,16 +89,27 @@ fun TasksScreen(vm: MonFoyerViewModel) {
     var taskToDelete by remember { mutableStateOf<HouseholdTask?>(null) }
     var statusFilter by remember { mutableStateOf("todo") }
     var memberFilter by remember { mutableStateOf("") }
+    var sortBy by remember { mutableStateOf("date") } // "date", "priority"
+    val thirtyDaysAgo = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
+    val historyTasks = vm.state.tasks.filter { it.done && it.completedAt > thirtyDaysAgo }
     val filteredTasks = vm.state.tasks
         .filter { task ->
             when (statusFilter) {
                 "todo" -> !task.done
                 "done" -> task.done
+                "history" -> false // shown separately below
                 else -> true
             }
         }
         .filter { task -> memberFilter.isBlank() || task.assigneeId == memberFilter }
-        .sortedWith(compareBy<HouseholdTask> { it.done }.thenBy { it.dueDate.ifBlank { "9999-12-31" } }.thenBy { it.title })
+        .let { list ->
+            if (sortBy == "priority") {
+                list.sortedWith(compareBy<HouseholdTask> { it.done }.thenBy { priorityOrder(it.priority) }.thenBy { it.dueDate.ifBlank { "9999-12-31" } })
+            } else {
+                list.sortedWith(compareBy<HouseholdTask> { it.done }.thenBy { it.dueDate.ifBlank { "9999-12-31" } }.thenBy { it.title })
+            }
+        }
+
     ModulePanel(title = "Taches") {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -96,6 +127,12 @@ fun TasksScreen(vm: MonFoyerViewModel) {
                 TaskFilterChip("A faire", statusFilter == "todo") { statusFilter = "todo" }
                 TaskFilterChip("Terminees", statusFilter == "done") { statusFilter = "done" }
                 TaskFilterChip("Toutes", statusFilter == "all") { statusFilter = "all" }
+                TaskFilterChip("Historique", statusFilter == "history") { statusFilter = "history" }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                TaskFilterChip("Tri: Date", sortBy == "date") { sortBy = "date" }
+                TaskFilterChip("Tri: Priorite", sortBy == "priority") { sortBy = "priority" }
             }
             if (vm.state.members.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
@@ -107,24 +144,65 @@ fun TasksScreen(vm: MonFoyerViewModel) {
                 }
             }
         }
-        if (filteredTasks.isEmpty()) {
-            item { EmptyState("✅", "Rien a faire ici", "Les taches apparaitront selon ton filtre.") }
-        }
-        items(filteredTasks) { task ->
-            TaskCard(
-                task = task,
-                onToggle = { vm.toggleTask(task) },
-                onEdit = { editingTask = task },
-                onDelete = { taskToDelete = task }
-            )
+        if (statusFilter == "history") {
+            if (historyTasks.isEmpty()) {
+                item { EmptyState("📋", "Aucun historique", "Les taches terminees ces 30 derniers jours apparaitront ici.") }
+            } else {
+                // Group by week — compute groups here so items() can iterate over list
+                val now = System.currentTimeMillis()
+                val oneWeek = 7L * 24 * 3600 * 1000
+                val weekThisLabel = "Cette semaine"
+                val weekLastLabel = "Semaine derniere"
+                val week2Label = "Il y a 2 semaines"
+                val week3Label = "Il y a 3 semaines"
+                val week4Label = "Il y a 4 semaines"
+                val weekThisTasks = historyTasks.filter { now - it.completedAt < oneWeek }
+                val weekLastTasks = historyTasks.filter { now - it.completedAt in oneWeek until 2 * oneWeek }
+                val week2Tasks = historyTasks.filter { now - it.completedAt in 2 * oneWeek until 3 * oneWeek }
+                val week3Tasks = historyTasks.filter { now - it.completedAt in 3 * oneWeek until 4 * oneWeek }
+                val week4Tasks = historyTasks.filter { now - it.completedAt >= 4 * oneWeek }
+
+                if (weekThisTasks.isNotEmpty()) {
+                    item { Spacer(Modifier.height(8.dp)); Text(weekThisLabel, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
+                    items(weekThisTasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                }
+                if (weekLastTasks.isNotEmpty()) {
+                    item { Spacer(Modifier.height(8.dp)); Text(weekLastLabel, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
+                    items(weekLastTasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                }
+                if (week2Tasks.isNotEmpty()) {
+                    item { Spacer(Modifier.height(8.dp)); Text(week2Label, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
+                    items(week2Tasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                }
+                if (week3Tasks.isNotEmpty()) {
+                    item { Spacer(Modifier.height(8.dp)); Text(week3Label, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
+                    items(week3Tasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                }
+                if (week4Tasks.isNotEmpty()) {
+                    item { Spacer(Modifier.height(8.dp)); Text(week4Label, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
+                    items(week4Tasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                }
+            }
+        } else {
+            if (filteredTasks.isEmpty()) {
+                item { EmptyState("✅", "Rien a faire ici", "Les taches apparaitront selon ton filtre.") }
+            }
+            items(filteredTasks) { task ->
+                TaskCard(
+                    task = task,
+                    onToggle = { vm.toggleTask(task) },
+                    onEdit = { editingTask = task },
+                    onDelete = { taskToDelete = task }
+                )
+            }
         }
     }
     if (showAddSheet) {
         AddTaskSheet(
             members = vm.state.members,
             onDismiss = { showAddSheet = false },
-            onAdd = { title, description, dueDate, emoji, member, repeatInterval ->
-                vm.addTask(title, description, dueDate, emoji, member, repeatInterval)
+            onAdd = { title, description, dueDate, emoji, member, repeatInterval, priority ->
+                vm.addTask(title, description, dueDate, emoji, member, repeatInterval, priority)
                 showAddSheet = false
             }
         )
@@ -134,8 +212,8 @@ fun TasksScreen(vm: MonFoyerViewModel) {
             members = vm.state.members,
             task = task,
             onDismiss = { editingTask = null },
-            onAdd = { title, description, dueDate, emoji, member, repeatInterval ->
-                vm.updateTask(task.id, title, description, dueDate, emoji, member, repeatInterval)
+            onAdd = { title, description, dueDate, emoji, member, repeatInterval, priority ->
+                vm.updateTask(task.id, title, description, dueDate, emoji, member, repeatInterval, priority)
                 editingTask = null
             }
         )
@@ -157,6 +235,7 @@ fun TasksScreen(vm: MonFoyerViewModel) {
 fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val color = Color(task.color)
     val overdue = task.isOverdue()
+    val pColor = priorityColor(task.priority)
     val cardScale by animateFloatAsState(
         targetValue = if (task.done) 0.985f else 1f,
         label = "task-card-scale"
@@ -178,47 +257,56 @@ fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onEdit: () -> Unit, onDe
             .graphicsLayer(scaleX = cardScale, scaleY = cardScale, alpha = cardAlpha)
             .clickable(onClick = onEdit)
     ) {
-        Column(Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
-                Text(task.title, fontSize = 24.sp, lineHeight = 27.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
-                Surface(
-                    color = Color.White,
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(2.dp, if (task.done) DeepGreen else CardBorder),
-                    modifier = Modifier.size(48.dp).clickable(onClick = onToggle)
-                ) {
-                    if (task.done) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.graphicsLayer(scaleX = checkScale, scaleY = checkScale)) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = DeepGreen)
+        Row(Modifier.fillMaxWidth()) {
+            // Priority indicator — left band
+            Box(
+                Modifier
+                    .width(6.dp)
+                    .fillMaxHeight()
+                    .background(pColor, shape = RoundedCornerShape(topStart = AppRadius, bottomStart = AppRadius))
+            )
+            Column(Modifier.padding(18.dp).weight(1f)) {
+                Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+                    Text(task.title, fontSize = 24.sp, lineHeight = 27.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(2.dp, if (task.done) DeepGreen else CardBorder),
+                        modifier = Modifier.size(48.dp).clickable(onClick = onToggle)
+                    ) {
+                        if (task.done) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.graphicsLayer(scaleX = checkScale, scaleY = checkScale)) {
+                                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = DeepGreen)
+                            }
                         }
                     }
                 }
-            }
-            if (task.description.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Text(task.description, color = Muted, fontSize = 15.sp)
-            }
-            Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = color.copy(alpha = 0.78f), shape = CircleShape, modifier = Modifier.size(50.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(task.assigneeName.firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                if (task.description.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(task.description, color = Muted, fontSize = 15.sp)
+                }
+                Spacer(Modifier.height(18.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = color.copy(alpha = 0.78f), shape = CircleShape, modifier = Modifier.size(50.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(task.assigneeName.firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text(task.emoji, fontSize = 24.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = Color(0xFFF0A000), modifier = Modifier.size(23.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(task.dueDate.taskDueLabel(), color = Color(0xFFF0A000), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("⋮⋮", color = Color(0xFFB9B9B9), fontSize = 25.sp, fontWeight = FontWeight.Black)
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Supprimer", tint = Muted)
                     }
                 }
-                Spacer(Modifier.width(14.dp))
-                Text(task.emoji, fontSize = 24.sp)
-                Spacer(Modifier.width(10.dp))
-                Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = Color(0xFFF0A000), modifier = Modifier.size(23.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(task.dueDate.taskDueLabel(), color = Color(0xFFF0A000), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Text("⋮⋮", color = Color(0xFFB9B9B9), fontSize = 25.sp, fontWeight = FontWeight.Black)
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Supprimer", tint = Muted)
+                if (overdue && !task.done) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("En retard", color = Coral, fontSize = 15.sp, fontWeight = FontWeight.Black)
                 }
-            }
-            if (overdue && !task.done) {
-                Spacer(Modifier.height(8.dp))
-                Text("En retard", color = Coral, fontSize = 15.sp, fontWeight = FontWeight.Black)
             }
         }
     }
@@ -230,7 +318,7 @@ fun AddTaskSheet(
     members: List<Member>,
     task: HouseholdTask? = null,
     onDismiss: () -> Unit,
-    onAdd: (String, String, String, String, Member?, String) -> Unit
+    onAdd: (String, String, String, String, Member?, String, String) -> Unit
 ) {
     var title by remember(task?.id) { mutableStateOf(task?.title.orEmpty()) }
     var description by remember(task?.id) { mutableStateOf(task?.description.orEmpty()) }
@@ -245,6 +333,7 @@ fun AddTaskSheet(
     }
     // Point 4g: repeatInterval state
     var repeatInterval by remember(task?.id) { mutableStateOf(task?.repeatInterval ?: "none") }
+    var priority by remember(task?.id) { mutableStateOf(task?.priority ?: "normal") }
     val selectedMember = members.firstOrNull { it.id == selectedMemberId }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -324,9 +413,17 @@ fun AddTaskSheet(
                     TaskFilterChip(label, repeatInterval == value) { repeatInterval = value }
                 }
             }
+            Spacer(Modifier.height(22.dp))
+            Text("Priorite", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("high" to "🔴 Haute", "normal" to "🟢 Normale", "low" to "⚫ Basse").forEach { (value, label) ->
+                    TaskFilterChip(label, priority == value) { priority = value }
+                }
+            }
             Spacer(Modifier.height(96.dp))
             PrimaryButton(text = if (task == null) "Ajouter" else "Enregistrer", icon = Icons.Filled.CheckCircle) {
-                onAdd(title, description, selectedDate.format(DateTimeFormatter.ISO_DATE), emoji, selectedMember, repeatInterval)
+                onAdd(title, description, selectedDate.format(DateTimeFormatter.ISO_DATE), emoji, selectedMember, repeatInterval, priority)
             }
             Spacer(Modifier.height(24.dp))
         }

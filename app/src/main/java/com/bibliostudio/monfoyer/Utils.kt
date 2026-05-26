@@ -1,7 +1,12 @@
 package com.bibliostudio.monfoyer
 
+import android.content.Context
+import android.content.Intent
+import android.provider.CalendarContract
 import androidx.compose.ui.graphics.Color
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -128,4 +133,19 @@ fun requestStatusLabel(status: String): String = when (status) {
     "approved" -> "Validee"
     "rejected" -> "Refusee"
     else -> "En attente"
+}
+
+fun exportEventToCalendar(context: Context, event: Event) {
+    val intent = Intent(Intent.ACTION_INSERT).apply {
+        data = CalendarContract.Events.CONTENT_URI
+        putExtra(CalendarContract.Events.TITLE, event.title)
+        putExtra(CalendarContract.Events.DESCRIPTION, event.description)
+        putExtra(CalendarContract.Events.EVENT_LOCATION, event.location)
+        val ldt = LocalDateTime.parse("${event.date}T${event.time.ifBlank { "00:00" }}:00")
+        val millis = ldt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, millis)
+        putExtra(CalendarContract.EXTRA_EVENT_END_TIME, millis + 3600_000)
+        putExtra(CalendarContract.Events.ALL_DAY, event.allDay)
+    }
+    context.startActivity(intent)
 }

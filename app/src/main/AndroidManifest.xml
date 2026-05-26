@@ -21,6 +21,13 @@
         <receiver
             android:name=".ReminderReceiver"
             android:exported="false" />
+        <receiver android:name=".MonFoyerWidgetReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/mon_foyer_widget_info" />
+        </receiver>
         <service
             android:name=".MonFoyerMessagingService"
             android:exported="false">

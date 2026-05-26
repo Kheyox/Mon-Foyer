@@ -48,7 +48,9 @@ data class HouseholdTask(
     val description: String = "",
     val dueDate: String = "",
     val emoji: String = "🙂",
-    val repeatInterval: String = "none"
+    val repeatInterval: String = "none",
+    val priority: String = "normal", // "high", "normal", "low"
+    val completedAt: Long = 0L
 )
 data class Birthday(val id: String = "", val name: String = "", val date: String = "", val birthYear: Int = 0)
 data class MediaRequest(
