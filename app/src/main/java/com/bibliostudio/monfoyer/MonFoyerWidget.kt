@@ -2,6 +2,7 @@ package com.bibliostudio.monfoyer
 
 import android.content.Context
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
@@ -39,7 +40,7 @@ class MonFoyerWidget : GlanceAppWidget() {
                     modifier = GlanceModifier
                         .fillMaxSize()
                         .background(Color.White)
-                        .padding(horizontal = 16, vertical = 12)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     // Header
                     Text(
@@ -50,7 +51,7 @@ class MonFoyerWidget : GlanceAppWidget() {
                             fontSize = 18.sp
                         )
                     )
-                    Spacer(GlanceModifier.height(8))
+                    Spacer(GlanceModifier.height(8.dp))
 
                     if (tasks.isEmpty() && events.isEmpty()) {
                         Text(
@@ -90,7 +91,7 @@ class MonFoyerWidget : GlanceAppWidget() {
 
                         // Events section
                         if (events.isNotEmpty()) {
-                            if (tasks.isNotEmpty()) Spacer(GlanceModifier.height(6))
+                            if (tasks.isNotEmpty()) Spacer(GlanceModifier.height(6.dp))
                             Text(
                                 text = "Aujourd'hui",
                                 style = TextStyle(
