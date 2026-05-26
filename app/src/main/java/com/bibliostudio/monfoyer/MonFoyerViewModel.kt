@@ -670,7 +670,8 @@ class MonFoyerViewModel : ViewModel() {
                     name = it.getString("name") ?: "",
                     email = it.getString("email") ?: "",
                     role = it.getString("role") ?: if (it.id == ownerId) "admin" else "member",
-                    color = it.getLong("color") ?: memberColorLong(it.id)
+                    color = it.getLong("color") ?: memberColorLong(it.id),
+                    avatar = it.getString("avatar") ?: ""
                 )
             }.orEmpty())
         }
