@@ -27,6 +27,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -337,14 +340,14 @@ fun MonthPreview() {
     Column {
         Text("Avril 2026", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Ink)
         Spacer(Modifier.height(12.dp))
-        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-            columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(7),
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
             userScrollEnabled = false,
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.height(300.dp)
         ) {
-            items(days) { day ->
+            gridItems(days) { day ->
                 Box(
                     Modifier.height(58.dp).clip(RoundedCornerShape(12.dp))
                         .background(if (day == 29) DeepGreen else SoftGrey)
