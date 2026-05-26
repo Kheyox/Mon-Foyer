@@ -4,6 +4,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,7 +40,11 @@ fun ShoppingScreen(vm: MonFoyerViewModel) {
     var confirmClear by remember { mutableStateOf(false) }
     var editingItem by remember { mutableStateOf<ShoppingItem?>(null) }
     val checkedCount = vm.state.shopping.count { it.done }
-    val favoriteItems = vm.state.shopping.filter { it.favorite }.distinctBy { it.name }.take(4)
+    val allDoneOrEmpty = vm.state.shopping.isEmpty() || vm.state.shopping.all { it.done }
+    val suggestionItems = if (allDoneOrEmpty) {
+        vm.state.shopping.filter { it.favorite }.distinctBy { it.name }
+    } else emptyList()
+    val favoriteItems = vm.state.shopping.filter { it.favorite && !it.done }.distinctBy { it.name }.take(4)
     val sortedItems = vm.state.shopping.sortedWith(compareBy<ShoppingItem> { it.done }.thenBy { it.category }.thenBy { it.name })
     ModulePanel(title = "Liste de course") {
         item {
@@ -62,6 +67,30 @@ fun ShoppingScreen(vm: MonFoyerViewModel) {
                     confirmClear = true
                 }
                 Spacer(Modifier.height(10.dp))
+            }
+            // Suggestions intelligentes quand la liste est vide/tous cochés
+            if (allDoneOrEmpty && suggestionItems.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Column {
+                    Text(
+                        "Ressortir les favoris ?",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Ink
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        suggestionItems.take(4).forEach { item ->
+                            TaskFilterChip("+ ${item.name}", false) {
+                                vm.addSuggestion(item)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
             }
         }
         if (sortedItems.isEmpty()) {

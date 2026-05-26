@@ -29,8 +29,10 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,12 +62,16 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+enum class AgendaViewMode { Month, Week, Day }
+
 @Composable
 fun AgendaScreen(vm: MonFoyerViewModel) {
+    val context = LocalContext.current
     var showAddSheet by remember { mutableStateOf(false) }
     var editingEvent by remember { mutableStateOf<Event?>(null) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var visibleMonth by remember { mutableStateOf(YearMonth.from(selectedDate)) }
+    var viewMode by remember { mutableStateOf(AgendaViewMode.Month) }
     val selectedDateText = selectedDate.format(DateTimeFormatter.ISO_DATE)
     val selectedEvents = vm.state.events.filter { it.date == selectedDateText }
     ModulePanel(title = "Calendrier") {
@@ -73,36 +79,87 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 Spacer(Modifier.weight(1f))
                 RoundIconButton(icon = Icons.Filled.Search, tint = Muted, onClick = {})
+                RoundIconButton(icon = Icons.Filled.IosShare, tint = Muted, onClick = {
+                    selectedEvents.firstOrNull()?.let { exportEventToCalendar(context, it) }
+                })
                 Surface(color = DeepGreen, shape = CircleShape, modifier = Modifier.size(54.dp).clickable { showAddSheet = true }) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.Add, contentDescription = "Ajouter", tint = Color.White, modifier = Modifier.size(32.dp))
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            CalendarMonthView(
-                month = visibleMonth,
-                selectedDate = selectedDate,
-                events = vm.state.events,
-                onPrevious = {
-                    visibleMonth = visibleMonth.minusMonths(1)
-                    selectedDate = visibleMonth.atDay(1)
-                },
-                onNext = {
-                    visibleMonth = visibleMonth.plusMonths(1)
-                    selectedDate = visibleMonth.atDay(1)
-                },
-                onDateSelected = {
-                    selectedDate = it
-                    visibleMonth = YearMonth.from(it)
+            Spacer(Modifier.height(12.dp))
+            // View mode toggle
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                AgendaViewMode.values().forEach { mode ->
+                    val label = when (mode) {
+                        AgendaViewMode.Month -> "Mois"
+                        AgendaViewMode.Week -> "Semaine"
+                        AgendaViewMode.Day -> "Jour"
+                    }
+                    TaskFilterChip(label, viewMode == mode) { viewMode = mode }
                 }
-            )
+            }
+            Spacer(Modifier.height(16.dp))
+            when (viewMode) {
+                AgendaViewMode.Month -> {
+                    CalendarMonthView(
+                        month = visibleMonth,
+                        selectedDate = selectedDate,
+                        events = vm.state.events,
+                        onPrevious = {
+                            visibleMonth = visibleMonth.minusMonths(1)
+                            selectedDate = visibleMonth.atDay(1)
+                        },
+                        onNext = {
+                            visibleMonth = visibleMonth.plusMonths(1)
+                            selectedDate = visibleMonth.atDay(1)
+                        },
+                        onDateSelected = {
+                            selectedDate = it
+                            visibleMonth = YearMonth.from(it)
+                        }
+                    )
+                }
+                AgendaViewMode.Week -> {
+                    CalendarWeekView(
+                        selectedDate = selectedDate,
+                        events = vm.state.events,
+                        onPreviousWeek = { selectedDate = selectedDate.minusWeeks(1) },
+                        onNextWeek = { selectedDate = selectedDate.plusWeeks(1) },
+                        onDateSelected = {
+                            selectedDate = it
+                            viewMode = AgendaViewMode.Day
+                        }
+                    )
+                }
+                AgendaViewMode.Day -> {
+                    // Day view header with nav
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        val dayTitle = selectedDate.format(
+                            DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.FRANCE)
+                        ).replaceFirstChar { it.titlecase(Locale.FRANCE) }
+                        Text(dayTitle, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+                        RoundIconButton(icon = Icons.Filled.ChevronLeft, tint = Muted) { selectedDate = selectedDate.minusDays(1) }
+                        Spacer(Modifier.width(8.dp))
+                        RoundIconButton(icon = Icons.Filled.ChevronRight, tint = DeepGreen) { selectedDate = selectedDate.plusDays(1) }
+                    }
+                }
+            }
             Spacer(Modifier.height(18.dp))
             if (selectedEvents.isEmpty()) {
                 EmptyState("🌤️", "Journee libre", "Aucun evenement prevu ce jour.")
             } else {
                 selectedEvents.forEach { event ->
-                    CalendarEventPill(event, onClick = { editingEvent = event })
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            CalendarEventPill(event, onClick = { editingEvent = event })
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        RoundIconButton(icon = Icons.Filled.IosShare, tint = Muted) {
+                            exportEventToCalendar(context, event)
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
                 }
             }
@@ -119,6 +176,9 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
                     Column(Modifier.weight(1f)) {
                         Text(event.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
                         Text(listOf(event.date, if (event.allDay) "Toute la journee" else event.time, event.owner).filter { it.isNotBlank() }.joinToString(" - "), fontSize = 16.sp, color = Muted)
+                    }
+                    IconButton(onClick = { exportEventToCalendar(context, event) }) {
+                        Icon(Icons.Filled.IosShare, contentDescription = "Exporter", tint = Muted, modifier = Modifier.size(22.dp))
                     }
                     DeleteButton { vm.delete("events", event.id) }
                 }
@@ -231,14 +291,82 @@ fun CalendarMonthView(
 }
 
 @Composable
-fun CalendarEventPill(event: Event, onClick: () -> Unit = {}) {
-    Surface(color = Color(event.typeColor).copy(alpha = 0.12f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+fun CalendarEventPill(event: Event, onClick: () -> Unit = {}, modifier: Modifier = Modifier) {
+    Surface(color = Color(event.typeColor).copy(alpha = 0.12f), shape = RoundedCornerShape(16.dp), modifier = modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(event.typeIcon, fontSize = 22.sp)
             Spacer(Modifier.width(10.dp))
             Column {
                 Text(event.title, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Ink)
                 Text(listOf(event.typeName, if (event.allDay) "Toute la journee" else event.time, event.owner.ifBlank { "Tout le foyer" }).joinToString(" - "), fontSize = 14.sp, color = Color(event.typeColor), fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+fun CalendarWeekView(
+    selectedDate: LocalDate,
+    events: List<Event>,
+    onPreviousWeek: () -> Unit,
+    onNextWeek: () -> Unit,
+    onDateSelected: (LocalDate) -> Unit
+) {
+    // Find Monday of the week containing selectedDate
+    val monday = selectedDate.minusDays((selectedDate.dayOfWeek.value - 1).toLong())
+    val weekDays = (0..6).map { monday.plusDays(it.toLong()) }
+    val dayLabels = listOf("L", "M", "M", "J", "V", "S", "D")
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            val weekLabel = "Sem. ${monday.format(DateTimeFormatter.ofPattern("d MMM", Locale.FRANCE))} - ${monday.plusDays(6).format(DateTimeFormatter.ofPattern("d MMM", Locale.FRANCE))}"
+            Text(weekLabel, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.weight(1f))
+            RoundIconButton(icon = Icons.Filled.ChevronLeft, tint = Muted, onClick = onPreviousWeek)
+            Spacer(Modifier.width(8.dp))
+            RoundIconButton(icon = Icons.Filled.ChevronRight, tint = DeepGreen, onClick = onNextWeek)
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            weekDays.forEachIndexed { index, date ->
+                val dateKey = date.format(DateTimeFormatter.ISO_DATE)
+                val dayEvents = events.filter { it.date == dateKey }
+                val isSelected = date == selectedDate
+                val isToday = date == LocalDate.now()
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isSelected) DeepGreen else if (isToday) DeepGreen.copy(alpha = 0.12f) else SoftGrey)
+                        .clickable { onDateSelected(date) }
+                        .padding(vertical = 8.dp, horizontal = 4.dp)
+                ) {
+                    Text(
+                        dayLabels[index],
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (isSelected) Color.White else Muted
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        date.dayOfMonth.toString(),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (isSelected) Color.White else Ink
+                    )
+                    if (dayEvents.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        dayEvents.take(3).forEach { event ->
+                            Box(
+                                Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) Color.White.copy(alpha = 0.85f) else Color(event.typeColor))
+                            )
+                            Spacer(Modifier.height(2.dp))
+                        }
+                    }
+                }
             }
         }
     }

@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Mon Foyer</string>
     <string name="web_client_id">247527760724-36q7np0qt21la3nrv5449kluisc26q9t.apps.googleusercontent.com</string>
+    <string name="widget_description">Résumé du foyer</string>
 </resources>

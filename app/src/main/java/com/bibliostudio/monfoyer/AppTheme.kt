@@ -22,3 +22,7 @@ internal val Clay = Color(0xFFC96D52)
 internal val AppRadius = 22.dp
 internal val PanelRadius = 34.dp
 internal val FieldRadius = 18.dp
+
+internal val PriorityHigh = Color(0xFFE53935)
+internal val PriorityNormal = Color(0xFF174C43) // DeepGreen
+internal val PriorityLow = Color(0xFF9E9E9E)

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,11 +89,44 @@ fun MonFoyerApp(vm: MonFoyerViewModel = viewModel()) {
     MaterialTheme(colorScheme = colors) {
         Surface(modifier = Modifier.fillMaxSize(), color = Cream) {
             when {
-                vm.state.loading -> CenterMessage("Chargement...")
+                vm.state.loading -> SplashScreen()
                 !vm.state.signedIn -> SignInScreen(vm)
                 vm.state.household == null -> HouseholdGate(vm)
                 else -> HomeShell(vm)
             }
+        }
+    }
+}
+
+@Composable
+fun SplashScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DeepGreen),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Mon Foyer",
+                color = Color.White,
+                fontSize = 42.sp,
+                fontWeight = FontWeight.Black
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "Chargement…",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 16.sp
+            )
+            Spacer(Modifier.height(24.dp))
+            CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier.size(40.dp)
+            )
         }
     }
 }
@@ -172,6 +206,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
     val context = LocalContext.current as ComponentActivity
     NotificationPermissionEffect()
     LaunchedEffect(Unit) {
+        vm.setAppContext(context)
         vm.checkForUpdate(context, silent = true, notify = true)
     }
     LaunchedEffect(vm.state.events, vm.state.tasks, vm.state.birthdays) {
