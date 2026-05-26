@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -134,6 +138,7 @@ jobs:
       - name: Tag and push
         run: |
           git tag "v${{ steps.version.outputs.name }}"
+          git pull --rebase origin main
           git push origin HEAD:main
           git push origin "v${{ steps.version.outputs.name }}"
 
