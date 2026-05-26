@@ -3,6 +3,15 @@ package com.bibliostudio.monfoyer
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -70,6 +79,9 @@ private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/Kheyo
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        window.statusBarColor = android.graphics.Color.parseColor("#103F37")
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
         setContent { MonFoyerApp() }
     }
 }
@@ -86,7 +98,14 @@ fun MonFoyerApp(vm: MonFoyerViewModel = viewModel()) {
         onPrimary = Color.White,
         onSurface = Ink
     )
-    MaterialTheme(colorScheme = colors) {
+    val view = LocalView.current
+    androidx.compose.runtime.SideEffect {
+        (view.context as? ComponentActivity)?.window?.apply {
+            statusBarColor = android.graphics.Color.parseColor("#103F37")
+            WindowCompat.getInsetsController(this, view).isAppearanceLightStatusBars = false
+        }
+    }
+    MaterialTheme(colorScheme = colors, typography = AppTypography) {
         Surface(modifier = Modifier.fillMaxSize(), color = Cream) {
             when {
                 vm.state.loading -> SplashScreen()
@@ -227,16 +246,31 @@ fun HomeShell(vm: MonFoyerViewModel) {
                 onSignOut = { vm.signOut(context) }
             )
             vm.state.error?.let { ErrorText(it, Modifier.padding(horizontal = 24.dp)) }
-            when (vm.state.selectedTab) {
-                Tab.Home -> Dashboard(vm)
-                Tab.Shopping -> ShoppingScreen(vm)
-                Tab.Tasks -> TasksScreen(vm)
-                Tab.Calendar -> AgendaScreen(vm)
-                Tab.Requests -> RequestsScreen(vm)
-                Tab.Activity -> ActivityScreen(vm)
-                Tab.Birthdays -> BirthdaysScreen(vm)
-                Tab.Notes -> NotesScreen(vm)
-                Tab.Members -> MembersScreen(vm)
+            AnimatedContent(
+                targetState = vm.state.selectedTab,
+                transitionSpec = {
+                    val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                    slideInHorizontally(
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        initialOffsetX = { fullWidth -> fullWidth * direction }
+                    ) togetherWith slideOutHorizontally(
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        targetOffsetX = { fullWidth -> -fullWidth * direction }
+                    )
+                },
+                label = "tab-slide"
+            ) { tab ->
+                when (tab) {
+                    Tab.Home -> Dashboard(vm)
+                    Tab.Shopping -> ShoppingScreen(vm)
+                    Tab.Tasks -> TasksScreen(vm)
+                    Tab.Calendar -> AgendaScreen(vm)
+                    Tab.Requests -> RequestsScreen(vm)
+                    Tab.Activity -> ActivityScreen(vm)
+                    Tab.Birthdays -> BirthdaysScreen(vm)
+                    Tab.Notes -> NotesScreen(vm)
+                    Tab.Members -> MembersScreen(vm)
+                }
             }
         }
         FloatingHomeButton(visible = vm.state.selectedTab != Tab.Home, onClick = { vm.select(Tab.Home) })

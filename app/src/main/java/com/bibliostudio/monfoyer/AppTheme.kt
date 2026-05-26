@@ -1,6 +1,10 @@
 package com.bibliostudio.monfoyer
 
+import androidx.compose.material3.Typography
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 
 internal val Cream = Color(0xFFFFFAF1)
@@ -24,5 +28,17 @@ internal val PanelRadius = 34.dp
 internal val FieldRadius = 18.dp
 
 internal val PriorityHigh = Color(0xFFE53935)
-internal val PriorityNormal = Color(0xFF174C43) // DeepGreen
+internal val PriorityNormal = Color(0xFF174C43)
 internal val PriorityLow = Color(0xFF9E9E9E)
+
+private val NunitoRegular = FontFamily(Font(R.font.nunito_regular))
+private val NunitoBold = FontFamily(Font(R.font.nunito_bold))
+
+internal val AppTypography = Typography(
+    displayLarge = TextStyle(fontFamily = NunitoBold),
+    headlineLarge = TextStyle(fontFamily = NunitoBold),
+    titleLarge = TextStyle(fontFamily = NunitoBold),
+    bodyLarge = TextStyle(fontFamily = NunitoRegular),
+    bodyMedium = TextStyle(fontFamily = NunitoRegular),
+    labelLarge = TextStyle(fontFamily = NunitoBold)
+)
