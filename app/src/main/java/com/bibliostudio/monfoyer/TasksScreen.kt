@@ -1,6 +1,7 @@
 package com.bibliostudio.monfoyer
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
@@ -43,10 +44,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +67,8 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 fun priorityOrder(priority: String): Int = when (priority) {
     "high" -> 0
@@ -90,6 +97,8 @@ fun TasksScreen(vm: MonFoyerViewModel) {
     var statusFilter by remember { mutableStateOf("todo") }
     var memberFilter by remember { mutableStateOf("") }
     var sortBy by remember { mutableStateOf("date") } // "date", "priority"
+    var confettiBurst by remember { mutableStateOf(0) }
+    val haptic = LocalHapticFeedback.current
     val thirtyDaysAgo = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
     val historyTasks = vm.state.tasks.filter { it.done && it.completedAt > thirtyDaysAgo }
     val filteredTasks = vm.state.tasks
@@ -164,23 +173,23 @@ fun TasksScreen(vm: MonFoyerViewModel) {
 
                 if (weekThisTasks.isNotEmpty()) {
                     item { Spacer(Modifier.height(8.dp)); Text(weekThisLabel, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
-                    items(weekThisTasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                    items(weekThisTasks) { task -> TaskCard(task = task, onToggle = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); if (!task.done) confettiBurst++; vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
                 }
                 if (weekLastTasks.isNotEmpty()) {
                     item { Spacer(Modifier.height(8.dp)); Text(weekLastLabel, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
-                    items(weekLastTasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                    items(weekLastTasks) { task -> TaskCard(task = task, onToggle = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); if (!task.done) confettiBurst++; vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
                 }
                 if (week2Tasks.isNotEmpty()) {
                     item { Spacer(Modifier.height(8.dp)); Text(week2Label, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
-                    items(week2Tasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                    items(week2Tasks) { task -> TaskCard(task = task, onToggle = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); if (!task.done) confettiBurst++; vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
                 }
                 if (week3Tasks.isNotEmpty()) {
                     item { Spacer(Modifier.height(8.dp)); Text(week3Label, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
-                    items(week3Tasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                    items(week3Tasks) { task -> TaskCard(task = task, onToggle = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); if (!task.done) confettiBurst++; vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
                 }
                 if (week4Tasks.isNotEmpty()) {
                     item { Spacer(Modifier.height(8.dp)); Text(week4Label, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted); Spacer(Modifier.height(8.dp)) }
-                    items(week4Tasks) { task -> TaskCard(task = task, onToggle = { vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
+                    items(week4Tasks) { task -> TaskCard(task = task, onToggle = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); if (!task.done) confettiBurst++; vm.toggleTask(task) }, onEdit = { editingTask = task }, onDelete = { taskToDelete = task }) }
                 }
             }
         } else {
@@ -190,7 +199,7 @@ fun TasksScreen(vm: MonFoyerViewModel) {
             items(filteredTasks) { task ->
                 TaskCard(
                     task = task,
-                    onToggle = { vm.toggleTask(task) },
+                    onToggle = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); if (!task.done) confettiBurst++; vm.toggleTask(task) },
                     onEdit = { editingTask = task },
                     onDelete = { taskToDelete = task }
                 )
@@ -223,11 +232,31 @@ fun TasksScreen(vm: MonFoyerViewModel) {
             title = "Supprimer cette tache ?",
             message = "La tache \"${task.title}\" sera supprimee pour tout le foyer.",
             onConfirm = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 vm.delete("tasks", task.id)
                 taskToDelete = null
             },
             onDismiss = { taskToDelete = null }
         )
+    }
+    ConfettiOverlay(trigger = confettiBurst)
+}
+
+@Composable
+fun ConfettiOverlay(trigger: Int) {
+    if (trigger <= 0) return
+    var visible by remember(trigger) { mutableStateOf(true) }
+    LaunchedEffect(trigger) {
+        delay(900)
+        visible = false
+    }
+    if (!visible) return
+    val pieces = remember(trigger) { List(24) { Offset(Random.nextFloat(), Random.nextFloat()) } }
+    Canvas(Modifier.fillMaxSize()) {
+        pieces.forEachIndexed { index, offset ->
+            val color = listOf(Lemon, Coral, Leaf, Sky, Lilac)[index % 5]
+            drawCircle(color = color, radius = 8f, center = Offset(size.width * offset.x, size.height * (0.1f + offset.y * 0.6f)))
+        }
     }
 }
 

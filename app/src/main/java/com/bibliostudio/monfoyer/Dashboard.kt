@@ -1,6 +1,7 @@
 package com.bibliostudio.monfoyer
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -124,7 +125,11 @@ fun Dashboard(vm: MonFoyerViewModel) {
 
 @Composable
 fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
-    val scale by animateFloatAsState(targetValue = if (tile.count != null) 1f else 0.985f, label = "module-scale")
+    val scale by animateFloatAsState(
+        targetValue = if (tile.count != null) 1f else 0.985f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 240f),
+        label = "module-scale"
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
