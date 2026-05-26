@@ -13,3 +13,5 @@ app/release/
 *.keystore
 google-services.json
 app/google-services.json
+worktrees
+.claude/
