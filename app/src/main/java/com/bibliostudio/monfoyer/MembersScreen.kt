@@ -2,6 +2,9 @@ package com.bibliostudio.monfoyer
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -159,8 +162,8 @@ fun MembersScreen(vm: MonFoyerViewModel) {
             member = member,
             canManageRole = isAdmin && member.id != state.currentUserId,
             onDismiss = { editingMember = null },
-            onSave = { name, color, role ->
-                vm.updateMember(member.id, name, color, role)
+            onSave = { name, color, role, avatar ->
+                vm.updateMember(member.id, name, color, role, avatar)
                 editingMember = null
             }
         )
@@ -198,7 +201,11 @@ fun MemberProfileCard(member: Member, stats: MemberStats, canEdit: Boolean, onCl
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Surface(color = accent, shape = CircleShape, modifier = Modifier.size(62.dp)) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(member.name.memberInitial(), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Black)
+                            if (member.avatar.isNotBlank()) {
+                                Text(member.avatar, fontSize = 28.sp)
+                            } else {
+                                Text(member.name.memberInitial(), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Black)
+                            }
                         }
                     }
                     Spacer(Modifier.width(14.dp))
@@ -246,10 +253,11 @@ fun MemberStatChip(emoji: String, value: String, label: String, modifier: Modifi
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MemberEditorSheet(member: Member, canManageRole: Boolean, onDismiss: () -> Unit, onSave: (String, Long, String) -> Unit) {
+fun MemberEditorSheet(member: Member, canManageRole: Boolean, onDismiss: () -> Unit, onSave: (String, Long, String, String) -> Unit) {
     var name by remember(member.id) { mutableStateOf(member.name.ifBlank { "Membre" }) }
     var color by remember(member.id) { mutableStateOf(member.color) }
     var role by remember(member.id) { mutableStateOf(member.role) }
+    var avatar by remember(member.id) { mutableStateOf(member.avatar) }
     val colors = listOf(0xFF174C43, 0xFFE86675, 0xFFE8A64F, 0xFF5C8EE6, 0xFF8A6FDF, 0xFF2F9C95, 0xFF54B568, 0xFFB56AE8)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -276,7 +284,11 @@ fun MemberEditorSheet(member: Member, canManageRole: Boolean, onDismiss: () -> U
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Color(color), shape = CircleShape, modifier = Modifier.size(72.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(name.memberInitial(), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
+                        if (avatar.isNotBlank()) {
+                            Text(avatar, fontSize = 32.sp)
+                        } else {
+                            Text(name.memberInitial(), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
+                        }
                     }
                 }
                 Spacer(Modifier.width(16.dp))
@@ -316,9 +328,30 @@ fun MemberEditorSheet(member: Member, canManageRole: Boolean, onDismiss: () -> U
                     RoleChip("Admin", role == "admin", Modifier.weight(1f)) { role = "admin" }
                 }
             }
+            Spacer(Modifier.height(24.dp))
+            Text("Avatar", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
+            Spacer(Modifier.height(12.dp))
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(6),
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                gridItems(MemberAvatars) { emoji ->
+                    Surface(
+                        color = if (avatar == emoji) DeepGreen else SoftGrey,
+                        shape = CircleShape,
+                        modifier = Modifier.size(44.dp).clickable { avatar = if (avatar == emoji) "" else emoji }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(emoji, fontSize = 22.sp)
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(30.dp))
             PrimaryButton(text = "Enregistrer", icon = Icons.Filled.CheckCircle) {
-                onSave(name, color, role)
+                onSave(name, color, role, avatar)
             }
             Spacer(Modifier.height(24.dp))
         }

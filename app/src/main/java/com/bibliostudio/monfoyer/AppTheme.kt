@@ -31,6 +31,12 @@ internal val PriorityHigh = Color(0xFFE53935)
 internal val PriorityNormal = Color(0xFF174C43)
 internal val PriorityLow = Color(0xFF9E9E9E)
 
+internal val MemberAvatars = listOf(
+    "🦁","🐼","🦊","🐨","🦋","🐸","🦄","🐬","🦉","🐺",
+    "🌸","🌙","⭐","🌈","🍀","🎈","🔥","💎","🎸","🚀",
+    "🍕","🎨","🌊","🏔️","🌺","🦅","🐙","🌻","🎭","🎯"
+)
+
 private val NunitoRegular = FontFamily(Font(R.font.nunito_regular))
 private val NunitoBold = FontFamily(Font(R.font.nunito_bold))
 

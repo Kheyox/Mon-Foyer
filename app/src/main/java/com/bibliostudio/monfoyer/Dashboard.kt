@@ -189,7 +189,11 @@ fun MemberColorStrip(members: List<Member>) {
             members.take(6).forEach { member ->
                 Surface(color = Color(member.color), shape = CircleShape, modifier = Modifier.size(34.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(member.name.memberInitial(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                        if (member.avatar.isNotBlank()) {
+                            Text(member.avatar, fontSize = 16.sp)
+                        } else {
+                            Text(member.name.memberInitial(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                        }
                     }
                 }
                 Spacer(Modifier.width(6.dp))
