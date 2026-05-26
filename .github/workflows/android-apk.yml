@@ -86,3 +86,29 @@ jobs:
           name: Mon Foyer ${{ github.ref_name }}
           body: |
             Version APK familiale de Mon Foyer.
+
+      - name: Generate update.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION_NAME=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*versionName = "\(.*\)".*/\1/')
+          VERSION_CODE=$(grep 'versionCode' app/build.gradle.kts | head -1 | sed 's/.*versionCode = \([0-9]*\).*/\1/')
+          APK_URL="https://github.com/Kheyox/Mon-Foyer/releases/download/v${VERSION_NAME}/mon-foyer-${VERSION_NAME}.apk"
+          cat > update.json <<EOF
+          {
+            "versionCode": ${VERSION_CODE},
+            "versionName": "${VERSION_NAME}",
+            "apkUrl": "${APK_URL}",
+            "notes": ""
+          }
+          EOF
+
+      - name: Commit and push update.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          git diff --cached --quiet || git commit -m "chore: update update.json for $(git describe --tags --abbrev=0)"
+          git push origin HEAD:main
