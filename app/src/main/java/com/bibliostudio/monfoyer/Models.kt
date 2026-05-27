@@ -97,7 +97,9 @@ data class AppUiState(
     val loading: Boolean = true,
     val error: String? = null,
     val checkingUpdate: Boolean = false,
-    val updateInfo: UpdateInfo? = null
+    val updateInfo: UpdateInfo? = null,
+    val isOffline: Boolean = false,
+    val sharedNote: String = ""
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {
