@@ -691,20 +691,32 @@ class MonFoyerViewModel : ViewModel() {
             state = state.copy(bills = snap?.documents?.map { Bill(it.id, it.getString("label") ?: "", it.getDouble("amount") ?: 0.0, it.getBoolean("paid") ?: false) }.orEmpty())
         }
         listeners += householdRef.collection("events").addSnapshotListener { snap, _ ->
-            state = state.copy(events = snap?.documents?.map {
+            val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
+            val toDelete = snap?.documents?.filter { doc ->
+                val recurrence = doc.getString("recurrence") ?: "Aucune"
+                val date = doc.getString("date") ?: ""
+                recurrence == "Aucune" && date.isNotBlank() && date < today
+            } ?: emptyList()
+            toDelete.forEach { doc ->
+                householdRef.collection("events").document(doc.id).delete()
+            }
+            state = state.copy(events = snap?.documents?.mapNotNull { doc ->
+                val date = doc.getString("date") ?: ""
+                val recurrence = doc.getString("recurrence") ?: "Aucune"
+                if (recurrence == "Aucune" && date.isNotBlank() && date < today) return@mapNotNull null
                 Event(
-                    id = it.id,
-                    title = it.getString("title") ?: "",
-                    owner = it.getString("owner") ?: "",
-                    date = it.getString("date") ?: "",
-                    description = it.getString("description") ?: "",
-                    location = it.getString("location") ?: "",
-                    typeName = it.getString("typeName") ?: "Repas",
-                    typeIcon = it.getString("typeIcon") ?: "🍴",
-                    typeColor = it.getLong("typeColor") ?: 0xFFE86675,
-                    allDay = it.getBoolean("allDay") ?: false,
-                    time = it.getString("time") ?: "00:00",
-                    recurrence = it.getString("recurrence") ?: "Aucune"
+                    id = doc.id,
+                    title = doc.getString("title") ?: "",
+                    owner = doc.getString("owner") ?: "",
+                    date = date,
+                    description = doc.getString("description") ?: "",
+                    location = doc.getString("location") ?: "",
+                    typeName = doc.getString("typeName") ?: "Repas",
+                    typeIcon = doc.getString("typeIcon") ?: "🍴",
+                    typeColor = doc.getLong("typeColor") ?: 0xFFE86675,
+                    allDay = doc.getBoolean("allDay") ?: false,
+                    time = doc.getString("time") ?: "00:00",
+                    recurrence = recurrence
                 )
             }.orEmpty())
             writeWidgetData(null)
