@@ -9,6 +9,9 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -38,6 +41,7 @@ class MonFoyerViewModel : ViewModel() {
     var state by mutableStateOf(AppUiState())
         private set
     private var appContext: Context? = null
+    private var sharedNoteJob: Job? = null
 
     fun setAppContext(context: Context) {
         appContext = context.applicationContext
@@ -45,6 +49,16 @@ class MonFoyerViewModel : ViewModel() {
 
     fun setOffline(offline: Boolean) {
         state = state.copy(isOffline = offline)
+    }
+
+    fun updateSharedNote(text: String) {
+        val household = state.household ?: return
+        state = state.copy(sharedNote = text)
+        sharedNoteJob?.cancel()
+        sharedNoteJob = viewModelScope.launch {
+            delay(600)
+            db.collection("households").document(household.id).update("sharedNote", text)
+        }
     }
 
     init {
@@ -657,6 +671,7 @@ class MonFoyerViewModel : ViewModel() {
                         ownerId = doc.getString("ownerId") ?: ""
                     ),
                     monthlyBudget = doc.getDouble("monthlyBudget") ?: 0.0,
+                    sharedNote = doc.getString("sharedNote") ?: "",
                     loading = false
                 )
             }
