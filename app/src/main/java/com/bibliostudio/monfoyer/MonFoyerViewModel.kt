@@ -32,7 +32,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.absoluteValue
 
-private const val UPDATE_MANIFEST_URL_VM = "https://raw.githubusercontent.com/Kheyox/Mon-Foyer/main/update.json"
+private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/Kheyox/Mon-Foyer/main/update.json"
 
 class MonFoyerViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
@@ -120,12 +120,12 @@ class MonFoyerViewModel : ViewModel() {
         state = state.copy(selectedTab = tab)
     }
 
-    fun checkForUpdate(context: Context? = null, silent: Boolean = false, notify: Boolean = false) {
+    fun checkForUpdate(context: Context? = null, notify: Boolean = false) {
         if (state.checkingUpdate) return
-        state = state.copy(checkingUpdate = true, error = if (silent) state.error else null)
+        state = state.copy(checkingUpdate = true)
         kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
             runCatching {
-                val json = URL(UPDATE_MANIFEST_URL_VM).readText()
+                val json = URL(UPDATE_MANIFEST_URL).readText()
                 val manifest = JSONObject(json)
                 UpdateInfo(
                     versionCode = manifest.optInt("versionCode", 0),
@@ -139,18 +139,11 @@ class MonFoyerViewModel : ViewModel() {
                     if (update != null && notify && context != null) {
                         notifyUpdateOnce(context, update)
                     }
-                    state = state.copy(
-                        checkingUpdate = false,
-                        updateInfo = update,
-                        error = if (update == null && !silent) "Mon Foyer est deja a jour." else state.error
-                    )
+                    state = state.copy(checkingUpdate = false, updateInfo = update)
                 }
             }.onFailure {
                 withContext(Dispatchers.Main) {
-                    state = state.copy(
-                        checkingUpdate = false,
-                        error = if (silent) state.error else "Verification impossible. Le fichier de mise a jour doit etre public."
-                    )
+                    state = state.copy(checkingUpdate = false)
                 }
             }
         }
