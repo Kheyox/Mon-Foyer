@@ -3,8 +3,10 @@ package com.bibliostudio.monfoyer
 import androidx.compose.material3.Typography
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.dp
 
 internal val Cream = Color(0xFFFFFAF1)
@@ -37,14 +39,26 @@ internal val MemberAvatars = listOf(
     "🍕","🎨","🌊","🏔️","🌺","🦅","🐙","🌻","🎭","🎯"
 )
 
-private val NunitoRegular = FontFamily(Font(R.font.nunito_regular))
-private val NunitoBold = FontFamily(Font(R.font.nunito_bold))
+private val fontProvider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = R.array.com_google_android_gms_fonts_certs
+)
+
+private val nunitoFont = GoogleFont("Nunito")
+
+private val NunitoFamily = FontFamily(
+    Font(googleFont = nunitoFont, fontProvider = fontProvider, weight = FontWeight.Normal),
+    Font(googleFont = nunitoFont, fontProvider = fontProvider, weight = FontWeight.Bold),
+    Font(googleFont = nunitoFont, fontProvider = fontProvider, weight = FontWeight.Black),
+    Font(googleFont = nunitoFont, fontProvider = fontProvider, weight = FontWeight.SemiBold)
+)
 
 internal val AppTypography = Typography(
-    displayLarge = TextStyle(fontFamily = NunitoBold),
-    headlineLarge = TextStyle(fontFamily = NunitoBold),
-    titleLarge = TextStyle(fontFamily = NunitoBold),
-    bodyLarge = TextStyle(fontFamily = NunitoRegular),
-    bodyMedium = TextStyle(fontFamily = NunitoRegular),
-    labelLarge = TextStyle(fontFamily = NunitoBold)
+    displayLarge = TextStyle(fontFamily = NunitoFamily, fontWeight = FontWeight.Black),
+    headlineLarge = TextStyle(fontFamily = NunitoFamily, fontWeight = FontWeight.Black),
+    titleLarge = TextStyle(fontFamily = NunitoFamily, fontWeight = FontWeight.Bold),
+    bodyLarge = TextStyle(fontFamily = NunitoFamily, fontWeight = FontWeight.Normal),
+    bodyMedium = TextStyle(fontFamily = NunitoFamily, fontWeight = FontWeight.Normal),
+    labelLarge = TextStyle(fontFamily = NunitoFamily, fontWeight = FontWeight.Bold)
 )
