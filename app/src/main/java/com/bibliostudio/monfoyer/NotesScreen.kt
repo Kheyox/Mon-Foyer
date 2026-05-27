@@ -1,5 +1,6 @@
 package com.bibliostudio.monfoyer
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
@@ -34,6 +35,37 @@ fun NotesScreen(vm: MonFoyerViewModel) {
     var body by remember { mutableStateOf("") }
     var editingNote by remember { mutableStateOf<Note?>(null) }
     ModulePanel(title = "Notes") {
+        item {
+            Surface(
+                color = Color(0xFFEEF6FF),
+                shape = RoundedCornerShape(AppRadius),
+                border = BorderStroke(1.4.dp, CardBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("📌", fontSize = 20.sp)
+                        Spacer(Modifier.padding(horizontal = 4.dp))
+                        Column {
+                            Text("Note commune", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+                            Text("Visible par tous en temps réel", fontSize = 12.sp, color = Muted)
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    SoftInput(
+                        value = vm.state.sharedNote,
+                        onValueChange = { vm.updateSharedNote(it) },
+                        label = "Ecris ici...",
+                        minLines = 3
+                    )
+                    if (vm.state.sharedNote.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("🟢 En direct", fontSize = 12.sp, color = Color(0xFF2E7D32))
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
         item {
             SoftInput(value = title, onValueChange = { title = it }, label = "Titre")
             Spacer(Modifier.height(10.dp))
