@@ -139,8 +139,9 @@ fun FlowerMark() {
 
 @Composable
 fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
+    val mood = moduleMood(title)
     Surface(
-        color = Paper,
+        color = mood.second.copy(alpha = 0.40f),
         shape = RoundedCornerShape(topStart = PanelRadius, topEnd = PanelRadius),
         modifier = Modifier.fillMaxSize()
     ) {
@@ -151,7 +152,6 @@ fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
             item {
                 Box(Modifier.width(58.dp).height(5.dp).clip(RoundedCornerShape(50)).background(CardBorder))
                 Spacer(Modifier.height(18.dp))
-                val mood = moduleMood(title)
                 Box(
                     Modifier
                         .fillMaxWidth()

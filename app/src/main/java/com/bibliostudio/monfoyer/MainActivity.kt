@@ -1,6 +1,10 @@
 package com.bibliostudio.monfoyer
 
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
@@ -57,6 +61,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -228,6 +233,29 @@ fun HomeShell(vm: MonFoyerViewModel) {
         vm.setAppContext(context)
         vm.checkForUpdate(context, silent = true, notify = true)
     }
+    DisposableEffect(Unit) {
+        val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+        val networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                vm.setOffline(false)
+            }
+            override fun onLost(network: Network) {
+                vm.setOffline(true)
+            }
+        }
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        connectivityManager.registerNetworkCallback(request, networkCallback)
+        // Check initial state
+        val activeNetwork = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+        val isConnected = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        vm.setOffline(!isConnected)
+        onDispose {
+            connectivityManager.unregisterNetworkCallback(networkCallback)
+        }
+    }
     LaunchedEffect(vm.state.events, vm.state.tasks, vm.state.birthdays) {
         ReminderScheduler.refresh(context, vm.state.events, vm.state.tasks, vm.state.birthdays)
     }
@@ -240,6 +268,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
             AppHeader(
                 activeTab = vm.state.selectedTab,
                 householdName = vm.state.household?.name ?: "Mon Foyer",
+                isOffline = vm.state.isOffline,
                 onHome = { vm.select(Tab.Home) },
                 onSelect = { vm.select(it) },
                 onCheckUpdate = { vm.checkForUpdate(context) },
@@ -287,6 +316,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
 fun AppHeader(
     activeTab: Tab,
     householdName: String,
+    isOffline: Boolean = false,
     onHome: () -> Unit,
     onSelect: (Tab) -> Unit,
     onCheckUpdate: () -> Unit,
@@ -297,6 +327,18 @@ fun AppHeader(
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             BrandLogo(Modifier.weight(1f))
             Spacer(Modifier.width(10.dp))
+            if (isOffline) {
+                Surface(color = Color(0xFF8B0000), shape = RoundedCornerShape(50)) {
+                    Text(
+                        text = "🔌 Hors ligne",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = androidx.compose.ui.Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+            }
             Box {
                 RoundIconButton(icon = Icons.Filled.MoreVert, tint = DeepGreen, onClick = { menuOpen = true })
                 HomeMenu(

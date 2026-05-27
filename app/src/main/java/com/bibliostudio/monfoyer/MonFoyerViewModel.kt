@@ -43,6 +43,10 @@ class MonFoyerViewModel : ViewModel() {
         appContext = context.applicationContext
     }
 
+    fun setOffline(offline: Boolean) {
+        state = state.copy(isOffline = offline)
+    }
+
     init {
         // Point 2: Mode offline Firestore
         FirebaseFirestore.getInstance().firestoreSettings = com.google.firebase.firestore.firestoreSettings { isPersistenceEnabled = true }
@@ -448,6 +452,7 @@ class MonFoyerViewModel : ViewModel() {
     }
 
     private fun scheduleNextRecurrence(task: HouseholdTask) {
+        val household = state.household ?: return
         val currentDue = runCatching { LocalDate.parse(task.dueDate) }.getOrNull() ?: LocalDate.now()
         val nextDue = when (task.repeatInterval) {
             "daily" -> currentDue.plusDays(1)
@@ -456,20 +461,14 @@ class MonFoyerViewModel : ViewModel() {
             "monthly" -> currentDue.plusMonths(1)
             else -> return
         }
-        add(
-            "tasks",
-            mapOf(
-                "title" to task.title,
-                "description" to task.description,
-                "dueDate" to nextDue.format(DateTimeFormatter.ISO_DATE),
-                "emoji" to task.emoji,
-                "assigneeId" to task.assigneeId,
-                "assigneeName" to task.assigneeName,
-                "color" to task.color,
-                "done" to false,
-                "repeatInterval" to task.repeatInterval
+        db.collection("households").document(household.id).collection("tasks").document(task.id)
+            .update(
+                mapOf(
+                    "done" to false,
+                    "completedAt" to 0L,
+                    "dueDate" to nextDue.format(DateTimeFormatter.ISO_DATE)
+                )
             )
-        )
     }
 
     fun updateShoppingItem(itemId: String, name: String, quantity: String, category: String) {
