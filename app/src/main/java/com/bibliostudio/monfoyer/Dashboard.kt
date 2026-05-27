@@ -1,8 +1,5 @@
 package com.bibliostudio.monfoyer
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,14 +32,9 @@ import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,36 +74,28 @@ fun Dashboard(vm: MonFoyerViewModel) {
         modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp).navigationBarsPadding()
     ) {
         item {
-            Surface(
-                color = Paper,
-                shape = RoundedCornerShape(30.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
-                shadowElevation = 2.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(Modifier.padding(20.dp)) {
-                    Canvas(Modifier.matchParentSize()) {
-                        drawCircle(
-                            color = Mint.copy(alpha = 0.65f),
-                            radius = 82.dp.toPx(),
-                            center = Offset(size.width - 10.dp.toPx(), 12.dp.toPx())
-                        )
-                        drawCircle(
-                            color = Lemon.copy(alpha = 0.55f),
-                            radius = 42.dp.toPx(),
-                            center = Offset(18.dp.toPx(), size.height - 10.dp.toPx())
-                        )
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Tableau du foyer", fontSize = 34.sp, lineHeight = 35.sp, fontWeight = FontWeight.Black, color = Ink)
-                            Spacer(Modifier.height(6.dp))
-                            Text("Tout le quotidien familial, clair et partage.", fontSize = 15.sp, lineHeight = 19.sp, color = Muted, fontWeight = FontWeight.Bold)
-                        }
-                        Text("🏡", fontSize = 42.sp)
-                    }
-                }
-            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Bonjour 👋",
+                fontSize = 15.sp,
+                color = Muted,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                state.household?.name ?: "Mon Foyer",
+                fontSize = 34.sp,
+                lineHeight = 36.sp,
+                fontWeight = FontWeight.Black,
+                color = Ink
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Tout le quotidien familial, clair et partage.",
+                fontSize = 15.sp,
+                color = Muted
+            )
+            Spacer(Modifier.height(16.dp))
         }
         item { HomeInsightStrip(state) }
         if (state.members.isNotEmpty()) {
@@ -125,62 +110,52 @@ fun Dashboard(vm: MonFoyerViewModel) {
 
 @Composable
 fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
-    val scale by animateFloatAsState(
-        targetValue = if (tile.count != null) 1f else 0.985f,
-        animationSpec = spring(dampingRatio = 0.65f, stiffness = 240f),
-        label = "module-scale"
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(106.dp)
-            .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(26.dp))
-            .background(androidx.compose.ui.graphics.Brush.linearGradient(tile.colors))
-            .clickable(onClick = onClick)
-            .padding(14.dp)
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(20.dp),
+        shadowElevation = 3.dp,
+        modifier = Modifier.fillMaxWidth().height(82.dp).clickable(onClick = onClick)
     ) {
-        Canvas(Modifier.matchParentSize()) {
-            drawCircle(
-                color = Color.White.copy(alpha = 0.24f),
-                radius = 88.dp.toPx(),
-                center = Offset(size.width - 4.dp.toPx(), size.height + 8.dp.toPx())
-            )
-            drawCircle(
-                color = tile.accent.copy(alpha = 0.12f),
-                radius = 70.dp.toPx(),
-                center = Offset(18.dp.toPx(), 18.dp.toPx())
-            )
-        }
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = Paper.copy(alpha = 0.90f), shape = RoundedCornerShape(22.dp), shadowElevation = 1.dp) {
-                Box(Modifier.size(70.dp), contentAlignment = Alignment.Center) {
-                    Text(tile.emoji, fontSize = 35.sp)
+            Box(
+                Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .background(
+                        tile.accent,
+                        RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp)
+                    )
+            )
+            Spacer(Modifier.width(16.dp))
+            Surface(
+                color = tile.accent.copy(alpha = 0.13f),
+                shape = CircleShape,
+                modifier = Modifier.size(50.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(tile.emoji, fontSize = 24.sp)
                 }
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.Icon(tile.icon, contentDescription = null, tint = tile.accent, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(7.dp))
-                    Text(tile.title, fontSize = 24.sp, lineHeight = 26.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Spacer(Modifier.height(5.dp))
-                Text(tile.subtitle, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, color = Ink.copy(alpha = 0.68f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(tile.title, fontSize = 19.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1)
+                Text(tile.subtitle, fontSize = 13.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Spacer(Modifier.width(10.dp))
-            tile.count?.let {
-                Surface(color = tile.accent, shape = RoundedCornerShape(18.dp), shadowElevation = 2.dp) {
-                    Text(it, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp), fontSize = 15.sp, fontWeight = FontWeight.Black, color = Color.White)
+            tile.count?.let { count ->
+                Surface(color = tile.accent, shape = CircleShape, modifier = Modifier.size(34.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(count, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    }
                 }
             }
+            Spacer(Modifier.width(16.dp))
         }
     }
 }
 
 @Composable
 fun MemberColorStrip(members: List<Member>) {
-    Surface(color = Paper, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)) {
+    Surface(color = Color.White, shape = RoundedCornerShape(22.dp), shadowElevation = 2.dp) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -227,9 +202,9 @@ fun HomeInsightStrip(state: AppUiState) {
         modifier = Modifier.height(116.dp)
     ) {
         gridItems(insights) { insight ->
-            Surface(color = Paper, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), shadowElevation = 1.dp) {
-                Box(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.CenterStart) {
-                    Text(insight, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Surface(color = Color.White, shape = RoundedCornerShape(16.dp), shadowElevation = 2.dp) {
+                Box(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(insight, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

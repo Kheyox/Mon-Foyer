@@ -358,13 +358,11 @@ fun AppHeader(
                     }
                 )
             }
-            Spacer(Modifier.width(10.dp))
-            RoundIconButton(icon = Icons.Filled.Logout, tint = Muted, onClick = onSignOut)
         }
         Spacer(Modifier.height(16.dp))
         if (activeTab != Tab.Home) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = DeepGreen, shape = RoundedCornerShape(50), shadowElevation = 2.dp, modifier = Modifier.clickable { onHome() }) {
+                Surface(color = Ink, shape = RoundedCornerShape(50), shadowElevation = 2.dp, modifier = Modifier.clickable { onHome() }) {
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(activeTab.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))

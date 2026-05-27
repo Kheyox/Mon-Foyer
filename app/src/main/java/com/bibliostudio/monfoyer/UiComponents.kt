@@ -95,27 +95,40 @@ fun NotificationPermissionEffect() {
 @Composable
 fun BrandLogo(modifier: Modifier = Modifier) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.size(52.dp)) {
-            drawCircle(color = Mint, radius = 24.dp.toPx(), center = Offset(size.width / 2, size.height / 2))
-            drawCircle(color = Lemon, radius = 5.dp.toPx(), center = Offset(42.dp.toPx(), 10.dp.toPx()))
-            drawCircle(color = Coral, radius = 4.dp.toPx(), center = Offset(44.dp.toPx(), 22.dp.toPx()))
-            val roof = Path().apply {
-                moveTo(12.dp.toPx(), 28.dp.toPx())
-                lineTo(26.dp.toPx(), 15.dp.toPx())
-                lineTo(40.dp.toPx(), 28.dp.toPx())
-            }
-            drawPath(roof, color = DeepGreen, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx()))
-            drawLine(DeepGreen, Offset(16.dp.toPx(), 27.dp.toPx()), Offset(16.dp.toPx(), 38.dp.toPx()), strokeWidth = 4.dp.toPx())
-            drawLine(DeepGreen, Offset(36.dp.toPx(), 27.dp.toPx()), Offset(36.dp.toPx(), 38.dp.toPx()), strokeWidth = 4.dp.toPx())
-            drawLine(DeepGreen, Offset(16.dp.toPx(), 38.dp.toPx()), Offset(36.dp.toPx(), 38.dp.toPx()), strokeWidth = 4.dp.toPx())
-            drawLine(DeepGreen, Offset(25.dp.toPx(), 38.dp.toPx()), Offset(25.dp.toPx(), 31.dp.toPx()), strokeWidth = 3.dp.toPx())
-        }
-        Spacer(Modifier.width(10.dp))
-        Text(
-            "Mon\nFoyer",
+        Surface(
             color = DeepGreen,
-            fontSize = 30.sp,
-            lineHeight = 26.sp,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.size(46.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(28.dp)) {
+                    val roof = Path().apply {
+                        moveTo(0f, size.height * 0.54f)
+                        lineTo(size.width * 0.50f, 0f)
+                        lineTo(size.width, size.height * 0.54f)
+                        close()
+                    }
+                    drawPath(roof, color = Color(0xFFFFD86B))
+                    drawRoundRect(
+                        color = Color.White,
+                        topLeft = Offset(size.width * 0.12f, size.height * 0.52f),
+                        size = androidx.compose.ui.geometry.Size(size.width * 0.76f, size.height * 0.50f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
+                    )
+                    drawRoundRect(
+                        color = Color(0xFFB2D9CE),
+                        topLeft = Offset(size.width * 0.36f, size.height * 0.68f),
+                        size = androidx.compose.ui.geometry.Size(size.width * 0.28f, size.height * 0.34f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(
+            "Mon Foyer",
+            color = Ink,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Black
         )
     }
@@ -141,7 +154,7 @@ fun FlowerMark() {
 fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
     val mood = moduleMood(title)
     Surface(
-        color = mood.second.copy(alpha = 0.40f),
+        color = Color(0xFFF8F7F5),
         shape = RoundedCornerShape(topStart = PanelRadius, topEnd = PanelRadius),
         modifier = Modifier.fillMaxSize()
     ) {
@@ -151,39 +164,16 @@ fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
         ) {
             item {
                 Box(Modifier.width(58.dp).height(5.dp).clip(RoundedCornerShape(50)).background(CardBorder))
-                Spacer(Modifier.height(18.dp))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(30.dp))
-                        .background(mood.second)
-                ) {
-                    Canvas(Modifier.matchParentSize()) {
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.28f),
-                            radius = 64.dp.toPx(),
-                            center = Offset(size.width - 18.dp.toPx(), 16.dp.toPx())
-                        )
-                        drawCircle(
-                            color = DeepGreen.copy(alpha = 0.08f),
-                            radius = 44.dp.toPx(),
-                            center = Offset(16.dp.toPx(), size.height - 6.dp.toPx())
-                        )
-                    }
-                    Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(color = Paper.copy(alpha = 0.82f), shape = RoundedCornerShape(20.dp)) {
-                            Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
-                                Text(mood.first, fontSize = 32.sp)
-                            }
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(title, fontSize = 31.sp, lineHeight = 33.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(mood.third, fontSize = 14.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = DeepGreen.copy(alpha = 0.72f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        }
+                Spacer(Modifier.height(24.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(mood.first, fontSize = 36.sp)
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(title, fontSize = 32.sp, fontWeight = FontWeight.Black, color = Ink)
+                        Text(mood.third, fontSize = 14.sp, color = Muted)
                     }
                 }
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(20.dp))
             }
             content()
             item { Spacer(Modifier.height(92.dp)) }
