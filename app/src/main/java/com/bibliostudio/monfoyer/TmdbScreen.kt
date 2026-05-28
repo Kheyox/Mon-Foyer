@@ -67,7 +67,6 @@ private val CinemaTextMuted = Color(0xFF9E9E9E)
 @Composable
 fun TmdbScreen(vm: MonFoyerViewModel) {
     LaunchedEffect("tmdb") { vm.loadTmdbHome() }
-    LaunchedEffect("books") { vm.loadBooksHome() }
 
     val state = vm.state
     val isSearching = state.tmdbSearchQuery.isNotBlank()
@@ -313,20 +312,42 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
                 }
             } else {
                 // ── Books tab ──────────────────────────────────────────────
-                val isBooksSearching = state.booksSearchQuery.isNotBlank()
-
-                // Books search bar
                 item {
                     Spacer(Modifier.height(4.dp))
                     BooksSearchBar(
                         query = state.booksSearchQuery,
                         onQueryChange = { vm.searchBooks(it) }
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(12.dp))
                 }
 
-                if (isBooksSearching) {
-                    if (state.booksSearching) {
+                when {
+                    state.booksSearchQuery.isBlank() -> {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(240.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("📚", fontSize = 56.sp)
+                                    Spacer(Modifier.height(16.dp))
+                                    Text(
+                                        "Cherche un livre",
+                                        color = Color.White,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        "Titre, auteur, ISBN…",
+                                        color = CinemaTextMuted,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    state.booksSearching -> {
                         item {
                             Box(
                                 modifier = Modifier.fillMaxWidth().height(200.dp),
@@ -335,14 +356,15 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
                                 CircularProgressIndicator(color = CinemaAccent)
                             }
                         }
-                    } else if (state.booksSearchResults.isEmpty()) {
+                    }
+                    state.booksSearchResults.isEmpty() -> {
                         item {
                             Box(
                                 modifier = Modifier.fillMaxWidth().height(200.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("📚", fontSize = 48.sp)
+                                    Text("🔍", fontSize = 48.sp)
                                     Spacer(Modifier.height(12.dp))
                                     Text(
                                         "Aucun résultat",
@@ -353,110 +375,21 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
                                 }
                             }
                         }
-                    } else {
-                        item {
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "Résultats de recherche",
-                                color = Color.White,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 20.sp,
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
-                            Spacer(Modifier.height(12.dp))
-                        }
-                        item {
-                            BooksSearchGrid(
-                                results = state.booksSearchResults,
-                                onBookClick = { selectedBook = it }
-                            )
-                        }
                     }
-                } else {
-                    // Browse categories
-                    if (state.booksPopularRomans.isNotEmpty()) {
-                        item {
-                            Spacer(Modifier.height(8.dp))
-                            TmdbSectionHeader(emoji = "📚", title = "Romans")
-                            Spacer(Modifier.height(10.dp))
-                            BooksHorizontalRow(
-                                books = state.booksPopularRomans,
-                                onBookClick = { selectedBook = it }
+                    else -> {
+                        items(state.booksSearchResults) { book ->
+                            BookListItem(
+                                book = book,
+                                onClick = { selectedBook = book }
                             )
-                            Spacer(Modifier.height(20.dp))
-                        }
-                    }
-                    if (state.booksPopularScifi.isNotEmpty()) {
-                        item {
-                            TmdbSectionHeader(emoji = "🚀", title = "Science-Fiction")
-                            Spacer(Modifier.height(10.dp))
-                            BooksHorizontalRow(
-                                books = state.booksPopularScifi,
-                                onBookClick = { selectedBook = it }
-                            )
-                            Spacer(Modifier.height(20.dp))
-                        }
-                    }
-                    if (state.booksPopularThriller.isNotEmpty()) {
-                        item {
-                            TmdbSectionHeader(emoji = "🔪", title = "Thrillers")
-                            Spacer(Modifier.height(10.dp))
-                            BooksHorizontalRow(
-                                books = state.booksPopularThriller,
-                                onBookClick = { selectedBook = it }
-                            )
-                            Spacer(Modifier.height(20.dp))
-                        }
-                    }
-                    if (state.booksPopularRomans.isEmpty() && state.booksPopularScifi.isEmpty() && state.booksPopularThriller.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().height(300.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (state.booksLoading) {
-                                    CircularProgressIndicator(color = CinemaAccent)
-                                } else {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Text("📡", fontSize = 48.sp)
-                                        Text(
-                                            "Impossible de charger les livres",
-                                            color = CinemaTextMuted,
-                                            fontSize = 15.sp,
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            modifier = Modifier.padding(horizontal = 32.dp)
-                                        )
-                                        Surface(
-                                            color = CinemaAccent,
-                                            shape = RoundedCornerShape(12.dp),
-                                            modifier = Modifier.clickable { vm.loadBooksHome() }
-                                        ) {
-                                            Text(
-                                                "Réessayer",
-                                                color = Color.Black,
-                                                fontWeight = FontWeight.Black,
-                                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
 
                 // Book requests section
                 item {
-                    Spacer(Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(Color(0xFF2C2C2E))
-                    )
+                    Spacer(Modifier.height(16.dp))
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF2C2C2E)))
                     Spacer(Modifier.height(20.dp))
                     Text(
                         "Demandes de livres",
@@ -481,18 +414,8 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
                             ) {
                                 Text("📚", fontSize = 40.sp)
                                 Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "Aucune demande",
-                                    color = CinemaTextMuted,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    "Cherche un livre à demander au foyer",
-                                    color = Color(0xFF6E6E73),
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
+                                Text("Aucune demande", color = CinemaTextMuted, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("Cherche un livre à demander au foyer", color = Color(0xFF6E6E73), fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                             }
                         }
                     }
@@ -1229,6 +1152,72 @@ private fun BookCoverCard(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookListItem(book: GoogleBook, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Cover
+        Box(
+            modifier = Modifier
+                .width(56.dp)
+                .height(80.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(CinemaCardDark),
+            contentAlignment = Alignment.Center
+        ) {
+            if (book.coverUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = book.coverUrl,
+                    contentDescription = book.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text("📖", fontSize = 24.sp)
+            }
+        }
+        // Info
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                book.title,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                book.authorsDisplay,
+                color = CinemaTextMuted,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (book.year.isNotBlank()) {
+                Text(book.year, color = Color(0xFF6E6E73), fontSize = 12.sp)
+            }
+        }
+        // Rating or arrow
+        if (book.ratingDisplay.isNotEmpty()) {
+            Surface(color = CinemaAccent, shape = RoundedCornerShape(6.dp)) {
+                Text(
+                    book.ratingDisplay,
+                    color = Color.Black,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                )
             }
         }
     }
