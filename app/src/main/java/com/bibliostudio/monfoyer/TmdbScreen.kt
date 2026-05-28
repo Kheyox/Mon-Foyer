@@ -76,6 +76,7 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
     var confirmDelete by remember { mutableStateOf<MediaRequest?>(null) }
     val isAdmin = state.isCurrentUserAdmin()
     var selectedTab by remember { mutableStateOf(0) } // 0 = films, 1 = livres
+    var expandedSection by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = Modifier
@@ -173,40 +174,67 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
                     if (state.tmdbTrending.isNotEmpty()) {
                         item {
                             Spacer(Modifier.height(8.dp))
-                            TmdbSectionHeader(emoji = "🔥", title = "Tendances")
-                            Spacer(Modifier.height(10.dp))
-                            TmdbHorizontalRow(
-                                items = state.tmdbTrending,
-                                onItemClick = { selectedMedia = it }
+                            TmdbSectionHeader(
+                                emoji = "🔥", title = "Tendances",
+                                expanded = expandedSection == "trending",
+                                onToggle = { expandedSection = if (expandedSection == "trending") null else "trending" }
                             )
-                            Spacer(Modifier.height(20.dp))
+                            Spacer(Modifier.height(10.dp))
                         }
+                        if (expandedSection == "trending") {
+                            items(state.tmdbTrending.chunked(2)) { row ->
+                                TmdbGridRow(row) { selectedMedia = it }
+                            }
+                        } else {
+                            item {
+                                TmdbHorizontalRow(items = state.tmdbTrending, onItemClick = { selectedMedia = it })
+                            }
+                        }
+                        item { Spacer(Modifier.height(20.dp)) }
                     }
 
                     // Popular movies section
                     if (state.tmdbPopularMovies.isNotEmpty()) {
                         item {
-                            TmdbSectionHeader(emoji = "🎬", title = "Films populaires")
-                            Spacer(Modifier.height(10.dp))
-                            TmdbHorizontalRow(
-                                items = state.tmdbPopularMovies,
-                                onItemClick = { selectedMedia = it }
+                            TmdbSectionHeader(
+                                emoji = "🎬", title = "Films populaires",
+                                expanded = expandedSection == "movies",
+                                onToggle = { expandedSection = if (expandedSection == "movies") null else "movies" }
                             )
-                            Spacer(Modifier.height(20.dp))
+                            Spacer(Modifier.height(10.dp))
                         }
+                        if (expandedSection == "movies") {
+                            items(state.tmdbPopularMovies.chunked(2)) { row ->
+                                TmdbGridRow(row) { selectedMedia = it }
+                            }
+                        } else {
+                            item {
+                                TmdbHorizontalRow(items = state.tmdbPopularMovies, onItemClick = { selectedMedia = it })
+                            }
+                        }
+                        item { Spacer(Modifier.height(20.dp)) }
                     }
 
                     // Popular TV section
                     if (state.tmdbPopularTv.isNotEmpty()) {
                         item {
-                            TmdbSectionHeader(emoji = "📺", title = "Séries populaires")
-                            Spacer(Modifier.height(10.dp))
-                            TmdbHorizontalRow(
-                                items = state.tmdbPopularTv,
-                                onItemClick = { selectedMedia = it }
+                            TmdbSectionHeader(
+                                emoji = "📺", title = "Séries populaires",
+                                expanded = expandedSection == "tv",
+                                onToggle = { expandedSection = if (expandedSection == "tv") null else "tv" }
                             )
-                            Spacer(Modifier.height(20.dp))
+                            Spacer(Modifier.height(10.dp))
                         }
+                        if (expandedSection == "tv") {
+                            items(state.tmdbPopularTv.chunked(2)) { row ->
+                                TmdbGridRow(row) { selectedMedia = it }
+                            }
+                        } else {
+                            item {
+                                TmdbHorizontalRow(items = state.tmdbPopularTv, onItemClick = { selectedMedia = it })
+                            }
+                        }
+                        item { Spacer(Modifier.height(20.dp)) }
                     }
 
                     // Loading state when nothing loaded yet
@@ -568,9 +596,16 @@ private fun TmdbSearchBar(query: String, onQueryChange: (String) -> Unit) {
 }
 
 @Composable
-private fun TmdbSectionHeader(emoji: String, title: String) {
+private fun TmdbSectionHeader(
+    emoji: String,
+    title: String,
+    expanded: Boolean = false,
+    onToggle: (() -> Unit)? = null
+) {
     Row(
-        modifier = Modifier.padding(horizontal = 16.dp),
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .then(if (onToggle != null) Modifier.clickable(onClick = onToggle) else Modifier),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(emoji, fontSize = 20.sp)
@@ -582,11 +617,36 @@ private fun TmdbSectionHeader(emoji: String, title: String) {
             fontSize = 20.sp,
             modifier = Modifier.weight(1f)
         )
-        Text(
-            "Tout voir →",
-            color = CinemaAccent,
-            fontSize = 13.sp
-        )
+        if (onToggle != null) {
+            Text(
+                if (expanded) "Réduire ↑" else "Tout voir →",
+                color = CinemaAccent,
+                fontSize = 13.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun TmdbGridRow(row: List<TmdbMedia>, onItemClick: (TmdbMedia) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        row.forEach { media ->
+            Box(modifier = Modifier.weight(1f)) {
+                TmdbPosterCard(
+                    media = media,
+                    width = 0.dp,
+                    height = 190.dp,
+                    onClick = { onItemClick(media) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        if (row.size == 1) Spacer(Modifier.weight(1f))
     }
 }
 
@@ -646,11 +706,12 @@ private fun TmdbPosterCard(
     media: TmdbMedia,
     width: androidx.compose.ui.unit.Dp,
     height: androidx.compose.ui.unit.Dp,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = Modifier
-            .width(width)
+        modifier = modifier
+            .then(if (width > 0.dp) Modifier.width(width) else Modifier)
             .height(height)
             .clip(RoundedCornerShape(12.dp))
             .background(CinemaCardDark)
