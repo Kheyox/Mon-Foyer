@@ -207,53 +207,60 @@ class MonFoyerViewModel : ViewModel() {
         }
     }
 
-    private suspend fun googleBooksFetch(path: String): org.json.JSONObject {
-        val url = "https://www.googleapis.com/books/v1$path"
-        return withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
+    private suspend fun openLibrarySearch(query: String): List<GoogleBook> {
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        val url = "https://openlibrary.org/search.json?q=$encoded&limit=20&fields=key,title,author_name,first_publish_year,cover_i,ratings_average,number_of_pages_median"
+        val json = withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
+        val docs = json.optJSONArray("docs") ?: return emptyList()
+        return (0 until docs.length()).mapNotNull { i ->
+            val doc = docs.getJSONObject(i)
+            val title = doc.optString("title").ifBlank { return@mapNotNull null }
+            val coverId = doc.optLong("cover_i", -1L)
+            val authorsArr = doc.optJSONArray("author_name")
+            val authors = if (authorsArr != null) (0 until authorsArr.length()).map { authorsArr.getString(it) } else emptyList()
+            val year = doc.optInt("first_publish_year", 0).let { if (it > 0) it.toString() else "" }
+            GoogleBook(
+                id = doc.optString("key"),
+                title = title,
+                authors = authors,
+                description = "",
+                publishedDate = year,
+                publisher = "",
+                pageCount = doc.optInt("number_of_pages_median", 0),
+                averageRating = doc.optDouble("ratings_average", 0.0),
+                thumbnailUrl = if (coverId > 0) "https://covers.openlibrary.org/b/id/$coverId-M.jpg" else ""
+            )
+        }
     }
 
-    private fun org.json.JSONObject.toGoogleBook(): GoogleBook {
-        val info = optJSONObject("volumeInfo") ?: return GoogleBook()
-        val authorsArr = info.optJSONArray("authors")
-        val authors = if (authorsArr != null) (0 until authorsArr.length()).map { authorsArr.getString(it) } else emptyList()
-        val thumbnail = info.optJSONObject("imageLinks")?.optString("thumbnail") ?: ""
-        return GoogleBook(
-            id = optString("id"),
-            title = info.optString("title"),
-            authors = authors,
-            description = info.optString("description"),
-            publishedDate = info.optString("publishedDate"),
-            publisher = info.optString("publisher"),
-            pageCount = info.optInt("pageCount"),
-            averageRating = info.optDouble("averageRating", 0.0),
-            thumbnailUrl = thumbnail
-        )
-    }
-
-    private fun org.json.JSONObject.toBooksListFromItems(): List<GoogleBook> {
-        val items = optJSONArray("items") ?: return emptyList()
-        return (0 until items.length()).map { items.getJSONObject(it).toGoogleBook() }
-            .filter { it.title.isNotBlank() }
+    suspend fun fetchBookDescription(bookKey: String): String {
+        if (bookKey.isBlank()) return ""
+        return runCatching {
+            val key = bookKey.removePrefix("/works/")
+            val url = "https://openlibrary.org/works/$key.json"
+            val json = withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
+            val desc = json.opt("description")
+            when (desc) {
+                is String -> desc
+                is org.json.JSONObject -> desc.optString("value")
+                else -> ""
+            }
+        }.getOrDefault("")
     }
 
     fun searchBooks(query: String) {
         state = state.copy(booksSearchQuery = query)
         booksSearchJob?.cancel()
         if (query.isBlank()) {
-            state = state.copy(booksSearchResults = emptyList(), booksSearching = false)
+            state = state.copy(booksSearchResults = emptyList(), booksSearching = false, booksSearchError = false)
             return
         }
-        state = state.copy(booksSearching = true)
+        state = state.copy(booksSearching = true, booksSearchError = false)
         booksSearchJob = viewModelScope.launch {
             delay(400)
-            runCatching {
-                val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-                googleBooksFetch("/volumes?q=$encoded&maxResults=20&printType=books").toBooksListFromItems()
-            }.onSuccess { results ->
-                state = state.copy(booksSearchResults = results, booksSearching = false)
-            }.onFailure {
-                state = state.copy(booksSearching = false)
-            }
+            runCatching { openLibrarySearch(query) }
+                .onSuccess { results -> state = state.copy(booksSearchResults = results, booksSearching = false, booksSearchError = false) }
+                .onFailure { state = state.copy(booksSearching = false, booksSearchError = true) }
         }
     }
 
