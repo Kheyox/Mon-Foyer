@@ -91,7 +91,7 @@ data class GoogleBook(
     val authorsDisplay get() = authors.joinToString(", ").ifEmpty { "Auteur inconnu" }
     val year get() = publishedDate.take(4)
     val ratingDisplay get() = if (averageRating > 0) "★ ${"%.1f".format(averageRating)}" else ""
-    val coverUrl get() = thumbnailUrl.replace("http://", "https://").replace("zoom=1", "zoom=0")
+    val coverUrl get() = thumbnailUrl
 }
 
 data class MediaRequest(
@@ -155,7 +155,8 @@ data class AppUiState(
     val tmdbDetailProviders: List<TmdbProvider> = emptyList(),
     val booksSearchResults: List<GoogleBook> = emptyList(),
     val booksSearchQuery: String = "",
-    val booksSearching: Boolean = false
+    val booksSearching: Boolean = false,
+    val booksSearchError: Boolean = false
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {

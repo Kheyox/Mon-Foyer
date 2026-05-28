@@ -349,29 +349,39 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
                     }
                     state.booksSearching -> {
                         item {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().height(200.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(color = CinemaAccent)
+                            }
+                        }
+                    }
+                    state.booksSearchError -> {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Text("📡", fontSize = 48.sp)
+                                    Text("Impossible de joindre le serveur", color = CinemaTextMuted, fontSize = 15.sp)
+                                    Surface(
+                                        color = CinemaAccent,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.clickable { vm.searchBooks(state.booksSearchQuery) }
+                                    ) {
+                                        Text("Réessayer", color = Color.Black, fontWeight = FontWeight.Black,
+                                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
+                                    }
+                                }
                             }
                         }
                     }
                     state.booksSearchResults.isEmpty() -> {
                         item {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().height(200.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("🔍", fontSize = 48.sp)
                                     Spacer(Modifier.height(12.dp))
-                                    Text(
-                                        "Aucun résultat",
-                                        color = CinemaTextMuted,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Text("Aucun résultat", color = CinemaTextMuted, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -457,6 +467,7 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
     selectedBook?.let { book ->
         BookDetailSheet(
             book = book,
+            vm = vm,
             alreadyRequested = state.mediaRequests.any { it.title == book.title && it.kind == "Livre" && it.status != "rejected" },
             onDismiss = { selectedBook = null },
             onRequest = {
@@ -1227,10 +1238,15 @@ private fun BookListItem(book: GoogleBook, onClick: () -> Unit) {
 @Composable
 private fun BookDetailSheet(
     book: GoogleBook,
+    vm: MonFoyerViewModel,
     alreadyRequested: Boolean,
     onDismiss: () -> Unit,
     onRequest: () -> Unit
 ) {
+    var description by remember { mutableStateOf("") }
+    LaunchedEffect(book.id) {
+        if (book.id.isNotBlank()) description = vm.fetchBookDescription(book.id)
+    }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1321,22 +1337,13 @@ private fun BookDetailSheet(
                 }
                 Spacer(Modifier.height(16.dp))
                 // Description
-                if (book.description.isNotEmpty()) {
-                    Text(
-                        "Synopsis",
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp
-                    )
+                if (description.isNotEmpty()) {
+                    Text("Synopsis", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        book.description,
-                        color = CinemaTextMuted,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                        maxLines = 8,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Text(description, color = CinemaTextMuted, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 8, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(20.dp))
+                } else if (book.id.isNotBlank()) {
+                    Text("Chargement du synopsis…", color = Color(0xFF6E6E73), fontSize = 13.sp)
                     Spacer(Modifier.height(20.dp))
                 }
                 // Request button
