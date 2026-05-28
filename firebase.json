@@ -5,5 +5,18 @@
   "functions": {
     "source": "functions",
     "runtime": "nodejs18"
+  },
+  "hosting": {
+    "public": "firebase-public",
+    "ignore": ["firebase.json", "**/.*"],
+    "headers": [
+      {
+        "source": "**/*.apk",
+        "headers": [
+          { "key": "Content-Type", "value": "application/vnd.android.package-archive" },
+          { "key": "Content-Disposition", "value": "attachment" }
+        ]
+      }
+    ]
   }
 }

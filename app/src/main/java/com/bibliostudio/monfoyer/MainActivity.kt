@@ -231,7 +231,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
     NotificationPermissionEffect()
     LaunchedEffect(Unit) {
         vm.setAppContext(context)
-        vm.checkForUpdate(context, silent = true, notify = true)
+        vm.checkForUpdate(context, notify = true)
     }
     DisposableEffect(Unit) {
         val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
