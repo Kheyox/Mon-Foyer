@@ -209,17 +209,19 @@ class MonFoyerViewModel : ViewModel() {
 
     private suspend fun openLibrarySearch(query: String): List<GoogleBook> {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-        val url = "https://openlibrary.org/search.json?q=$encoded&limit=20&lang=fre&fields=key,title,author_name,first_publish_year,cover_i,ratings_average,number_of_pages_median"
+        val url = "https://openlibrary.org/search.json?q=$encoded&limit=40&fields=key,title,author_name,first_publish_year,cover_i,ratings_average,number_of_pages_median,language"
         val json = withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
         val docs = json.optJSONArray("docs") ?: return emptyList()
-        return (0 until docs.length()).mapNotNull { i ->
+        val all = (0 until docs.length()).mapNotNull { i ->
             val doc = docs.getJSONObject(i)
             val title = doc.optString("title").ifBlank { return@mapNotNull null }
             val coverId = doc.optLong("cover_i", -1L)
             val authorsArr = doc.optJSONArray("author_name")
             val authors = if (authorsArr != null) (0 until authorsArr.length()).map { authorsArr.getString(it) } else emptyList()
             val year = doc.optInt("first_publish_year", 0).let { if (it > 0) it.toString() else "" }
-            GoogleBook(
+            val langsArr = doc.optJSONArray("language")
+            val isFrench = langsArr != null && (0 until langsArr.length()).any { langsArr.optString(it) == "fre" }
+            Pair(isFrench, GoogleBook(
                 id = doc.optString("key"),
                 title = title,
                 authors = authors,
@@ -229,8 +231,14 @@ class MonFoyerViewModel : ViewModel() {
                 pageCount = doc.optInt("number_of_pages_median", 0),
                 averageRating = doc.optDouble("ratings_average", 0.0),
                 thumbnailUrl = if (coverId > 0) "https://covers.openlibrary.org/b/id/$coverId-M.jpg" else ""
-            )
+            ))
         }
+        // French editions first, then others — deduplicated by title+author
+        val seen = mutableSetOf<String>()
+        return (all.filter { it.first } + all.filter { !it.first })
+            .map { it.second }
+            .filter { book -> seen.add("${book.title}|${book.authors.firstOrNull()}") }
+            .take(20)
     }
 
     suspend fun fetchBookDescription(bookKey: String): String {
