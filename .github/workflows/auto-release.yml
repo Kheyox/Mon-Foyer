@@ -31,11 +31,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin ${{ github.ref_name }}
-          # Merge; if build.gradle.kts conflicts (version bump race), resolve with main's version
+          # Merge; on conflict: take feature branch for all source files, keep main's build.gradle.kts
           git merge origin/${{ github.ref_name }} --no-ff -m "chore: merge ${{ github.ref_name }}" || {
+            git diff --name-only --diff-filter=U | grep -v 'build.gradle.kts' | xargs -r -I{} git checkout MERGE_HEAD -- {}
             git checkout HEAD -- app/build.gradle.kts
-            git add app/build.gradle.kts
-            git commit -m "chore: merge ${{ github.ref_name }} (version conflict auto-resolved)"
+            git add -A
+            git commit -m "chore: merge ${{ github.ref_name }} (conflicts auto-resolved)"
           }
           # Patch in any buildConfigField / new deps from the feature branch not yet in main
           FEATURE=$(git show origin/${{ github.ref_name }}:app/build.gradle.kts 2>/dev/null || true)
