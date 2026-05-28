@@ -155,11 +155,7 @@ data class AppUiState(
     val tmdbDetailProviders: List<TmdbProvider> = emptyList(),
     val booksSearchResults: List<GoogleBook> = emptyList(),
     val booksSearchQuery: String = "",
-    val booksSearching: Boolean = false,
-    val booksLoading: Boolean = false,
-    val booksPopularRomans: List<GoogleBook> = emptyList(),
-    val booksPopularScifi: List<GoogleBook> = emptyList(),
-    val booksPopularThriller: List<GoogleBook> = emptyList()
+    val booksSearching: Boolean = false
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {
