@@ -156,6 +156,7 @@ data class AppUiState(
     val booksSearchResults: List<GoogleBook> = emptyList(),
     val booksSearchQuery: String = "",
     val booksSearching: Boolean = false,
+    val booksLoading: Boolean = false,
     val booksPopularRomans: List<GoogleBook> = emptyList(),
     val booksPopularScifi: List<GoogleBook> = emptyList(),
     val booksPopularThriller: List<GoogleBook> = emptyList()

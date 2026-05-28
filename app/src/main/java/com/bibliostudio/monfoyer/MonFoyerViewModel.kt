@@ -209,7 +209,13 @@ class MonFoyerViewModel : ViewModel() {
 
     private suspend fun googleBooksFetch(path: String): org.json.JSONObject {
         val url = "https://www.googleapis.com/books/v1$path"
-        return withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
+        return withContext(Dispatchers.IO) {
+            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 10_000
+            try { org.json.JSONObject(conn.inputStream.bufferedReader().readText()) }
+            finally { conn.disconnect() }
+        }
     }
 
     private fun org.json.JSONObject.toGoogleBook(): GoogleBook {
@@ -237,6 +243,8 @@ class MonFoyerViewModel : ViewModel() {
     }
 
     fun loadBooksHome() {
+        if (state.booksLoading || state.booksPopularRomans.isNotEmpty()) return
+        state = state.copy(booksLoading = true)
         viewModelScope.launch {
             runCatching {
                 val romans = googleBooksFetch("/volumes?q=subject:roman&orderBy=relevance&maxResults=20&langRestrict=fr&printType=books").toBooksListFromItems()
@@ -245,10 +253,13 @@ class MonFoyerViewModel : ViewModel() {
                 Triple(romans, scifi, thriller)
             }.onSuccess { (romans, scifi, thriller) ->
                 state = state.copy(
+                    booksLoading = false,
                     booksPopularRomans = romans,
                     booksPopularScifi = scifi,
                     booksPopularThriller = thriller
                 )
+            }.onFailure {
+                state = state.copy(booksLoading = false)
             }
         }
     }
