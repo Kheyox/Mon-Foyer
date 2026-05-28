@@ -66,8 +66,8 @@ private val CinemaTextMuted = Color(0xFF9E9E9E)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TmdbScreen(vm: MonFoyerViewModel) {
-    LaunchedEffect(Unit) { vm.loadTmdbHome() }
-    LaunchedEffect(Unit) { vm.loadBooksHome() }
+    LaunchedEffect("tmdb") { vm.loadTmdbHome() }
+    LaunchedEffect("books") { vm.loadBooksHome() }
 
     val state = vm.state
     val isSearching = state.tmdbSearchQuery.isNotBlank()
