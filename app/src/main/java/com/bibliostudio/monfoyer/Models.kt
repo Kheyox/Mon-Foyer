@@ -53,6 +53,30 @@ data class HouseholdTask(
     val completedAt: Long = 0L
 )
 data class Birthday(val id: String = "", val name: String = "", val date: String = "", val birthYear: Int = 0)
+data class TmdbMedia(
+    val id: Int = 0,
+    val title: String = "",
+    val mediaType: String = "movie", // "movie" or "tv"
+    val posterPath: String = "",
+    val backdropPath: String = "",
+    val overview: String = "",
+    val releaseDate: String = "",
+    val voteAverage: Double = 0.0
+) {
+    val posterUrl get() = if (posterPath.isNotEmpty()) "https://image.tmdb.org/t/p/w342$posterPath" else ""
+    val backdropUrl get() = if (backdropPath.isNotEmpty()) "https://image.tmdb.org/t/p/w780$backdropPath" else ""
+    val year get() = releaseDate.take(4)
+    val ratingDisplay get() = if (voteAverage > 0) "★ ${"%.1f".format(voteAverage)}" else ""
+}
+
+data class TmdbProvider(
+    val id: Int = 0,
+    val name: String = "",
+    val logoPath: String = ""
+) {
+    val logoUrl get() = if (logoPath.isNotEmpty()) "https://image.tmdb.org/t/p/w45$logoPath" else ""
+}
+
 data class MediaRequest(
     val id: String = "",
     val title: String = "",
@@ -60,7 +84,12 @@ data class MediaRequest(
     val requesterId: String = "",
     val requesterName: String = "",
     val status: String = "pending",
-    val adminNote: String = ""
+    val adminNote: String = "",
+    val posterUrl: String = "",
+    val overview: String = "",
+    val year: String = "",
+    val tmdbId: Int = 0,
+    val voteAverage: Double = 0.0
 )
 data class ActivityItem(
     val id: String = "",
@@ -99,7 +128,14 @@ data class AppUiState(
     val checkingUpdate: Boolean = false,
     val updateInfo: UpdateInfo? = null,
     val isOffline: Boolean = false,
-    val sharedNote: String = ""
+    val sharedNote: String = "",
+    val tmdbTrending: List<TmdbMedia> = emptyList(),
+    val tmdbPopularMovies: List<TmdbMedia> = emptyList(),
+    val tmdbPopularTv: List<TmdbMedia> = emptyList(),
+    val tmdbSearchResults: List<TmdbMedia> = emptyList(),
+    val tmdbSearchQuery: String = "",
+    val tmdbSearching: Boolean = false,
+    val tmdbDetailProviders: List<TmdbProvider> = emptyList()
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {

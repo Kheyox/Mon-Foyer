@@ -294,7 +294,7 @@ fun HomeShell(vm: MonFoyerViewModel) {
                     Tab.Shopping -> ShoppingScreen(vm)
                     Tab.Tasks -> TasksScreen(vm)
                     Tab.Calendar -> AgendaScreen(vm)
-                    Tab.Requests -> RequestsScreen(vm)
+                    Tab.Requests -> TmdbScreen(vm)
                     Tab.Activity -> ActivityScreen(vm)
                     Tab.Birthdays -> BirthdaysScreen(vm)
                     Tab.Notes -> NotesScreen(vm)

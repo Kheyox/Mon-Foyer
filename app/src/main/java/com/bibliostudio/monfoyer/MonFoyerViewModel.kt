@@ -42,6 +42,7 @@ class MonFoyerViewModel : ViewModel() {
         private set
     private var appContext: Context? = null
     private var sharedNoteJob: Job? = null
+    private var tmdbSearchJob: Job? = null
 
     fun setAppContext(context: Context) {
         appContext = context.applicationContext
@@ -118,6 +119,115 @@ class MonFoyerViewModel : ViewModel() {
 
     fun select(tab: Tab) {
         state = state.copy(selectedTab = tab)
+    }
+
+    private suspend fun tmdbFetch(path: String): JSONObject {
+        val sep = if ('?' in path) '&' else '?'
+        val url = "https://api.themoviedb.org/3$path${sep}api_key=${BuildConfig.TMDB_API_KEY}&language=fr-FR"
+        return withContext(Dispatchers.IO) { JSONObject(URL(url).readText()) }
+    }
+
+    private fun JSONObject.toTmdbMedia(): TmdbMedia {
+        val mediaType = optString("media_type").ifEmpty {
+            if (has("first_air_date")) "tv" else "movie"
+        }
+        return TmdbMedia(
+            id = optInt("id"),
+            title = optString("title").ifEmpty { optString("name") },
+            mediaType = mediaType,
+            posterPath = optString("poster_path"),
+            backdropPath = optString("backdrop_path"),
+            overview = optString("overview"),
+            releaseDate = optString("release_date").ifEmpty { optString("first_air_date") },
+            voteAverage = optDouble("vote_average", 0.0)
+        )
+    }
+
+    private fun JSONArray.toTmdbList(): List<TmdbMedia> =
+        (0 until length()).map { getJSONObject(it).toTmdbMedia() }
+
+    fun loadTmdbHome() {
+        viewModelScope.launch {
+            runCatching {
+                val trending = tmdbFetch("/trending/all/week").getJSONArray("results").toTmdbList()
+                val movies = tmdbFetch("/movie/popular").getJSONArray("results").toTmdbList()
+                val tv = tmdbFetch("/tv/popular").getJSONArray("results").toTmdbList()
+                Triple(trending, movies, tv)
+            }.onSuccess { (trending, movies, tv) ->
+                state = state.copy(
+                    tmdbTrending = trending,
+                    tmdbPopularMovies = movies,
+                    tmdbPopularTv = tv
+                )
+            }
+        }
+    }
+
+    fun searchTmdb(query: String) {
+        state = state.copy(tmdbSearchQuery = query)
+        tmdbSearchJob?.cancel()
+        if (query.isBlank()) {
+            state = state.copy(tmdbSearchResults = emptyList(), tmdbSearching = false)
+            return
+        }
+        state = state.copy(tmdbSearching = true)
+        tmdbSearchJob = viewModelScope.launch {
+            delay(400)
+            runCatching {
+                val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+                tmdbFetch("/search/multi?query=$encoded").getJSONArray("results").toTmdbList()
+                    .filter { it.mediaType != "person" && it.title.isNotBlank() }
+            }.onSuccess { results ->
+                state = state.copy(tmdbSearchResults = results, tmdbSearching = false)
+            }.onFailure {
+                state = state.copy(tmdbSearching = false)
+            }
+        }
+    }
+
+    fun loadProviders(tmdbId: Int, mediaType: String) {
+        state = state.copy(tmdbDetailProviders = emptyList())
+        viewModelScope.launch {
+            val providers = runCatching {
+                val path = "/${if (mediaType == "tv") "tv" else "movie"}/$tmdbId/watch/providers"
+                val result = tmdbFetch(path)
+                val fr = result.optJSONObject("results")?.optJSONObject("FR") ?: return@runCatching emptyList<TmdbProvider>()
+                val flatrate = fr.optJSONArray("flatrate") ?: return@runCatching emptyList<TmdbProvider>()
+                (0 until flatrate.length()).map {
+                    val obj = flatrate.getJSONObject(it)
+                    TmdbProvider(
+                        id = obj.optInt("provider_id"),
+                        name = obj.optString("provider_name"),
+                        logoPath = obj.optString("logo_path")
+                    )
+                }
+            }.getOrDefault(emptyList())
+            state = state.copy(tmdbDetailProviders = providers)
+        }
+    }
+
+    fun addTmdbRequest(media: TmdbMedia) {
+        val household = state.household ?: return
+        val user = auth.currentUser ?: return
+        val requesterName = state.members.firstOrNull { it.id == user.uid }?.name
+            ?: state.userName.ifBlank { "Membre" }
+        db.collection("households").document(household.id).collection("requests")
+            .add(mapOf(
+                "title" to media.title,
+                "kind" to "FilmSerie",
+                "requesterId" to user.uid,
+                "requesterName" to requesterName,
+                "status" to "pending",
+                "adminNote" to "",
+                "posterUrl" to media.posterUrl,
+                "overview" to media.overview,
+                "year" to media.year,
+                "tmdbId" to media.id,
+                "voteAverage" to media.voteAverage,
+                "createdAt" to FieldValue.serverTimestamp()
+            ))
+            .addOnSuccessListener { logActivity("a demande \"${media.title}\"") }
+            .addOnFailureListener { setError(it.message ?: "Demande impossible.") }
     }
 
     fun checkForUpdate(context: Context? = null, notify: Boolean = false) {
@@ -759,7 +869,12 @@ class MonFoyerViewModel : ViewModel() {
                     requesterId = it.getString("requesterId") ?: "",
                     requesterName = it.getString("requesterName") ?: "",
                     status = it.getString("status") ?: "pending",
-                    adminNote = it.getString("adminNote") ?: ""
+                    adminNote = it.getString("adminNote") ?: "",
+                    posterUrl = it.getString("posterUrl") ?: "",
+                    overview = it.getString("overview") ?: "",
+                    year = it.getString("year") ?: "",
+                    tmdbId = (it.getLong("tmdbId") ?: 0L).toInt(),
+                    voteAverage = it.getDouble("voteAverage") ?: 0.0
                 )
             }.orEmpty())
         }
