@@ -237,7 +237,8 @@ class MonFoyerViewModel : ViewModel() {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
         val fields = "key,title,author_name,first_publish_year,cover_i,ratings_average,number_of_pages_median"
         return coroutineScope {
-            val frenchD = async { runCatching { openLibraryFetch("https://openlibrary.org/search.json?q=$encoded+language:fre&limit=20&fields=$fields") }.getOrDefault(emptyList()) }
+            // language=fre = vrai filtre API (pas un mot-clé dans q)
+            val frenchD = async { runCatching { openLibraryFetch("https://openlibrary.org/search.json?q=$encoded&language=fre&limit=20&fields=$fields") }.getOrDefault(emptyList()) }
             val allD    = async { runCatching { openLibraryFetch("https://openlibrary.org/search.json?q=$encoded&limit=20&fields=$fields") }.getOrDefault(emptyList()) }
             val seen = mutableSetOf<String>()
             (frenchD.await() + allD.await())
