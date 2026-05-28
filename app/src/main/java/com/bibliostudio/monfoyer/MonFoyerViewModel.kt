@@ -209,7 +209,7 @@ class MonFoyerViewModel : ViewModel() {
 
     private suspend fun openLibrarySearch(query: String): List<GoogleBook> {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-        val url = "https://openlibrary.org/search.json?q=$encoded&limit=20&fields=key,title,author_name,first_publish_year,cover_i,ratings_average,number_of_pages_median"
+        val url = "https://openlibrary.org/search.json?q=$encoded&limit=20&lang=fre&fields=key,title,author_name,first_publish_year,cover_i,ratings_average,number_of_pages_median"
         val json = withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
         val docs = json.optJSONArray("docs") ?: return emptyList()
         return (0 until docs.length()).mapNotNull { i ->
