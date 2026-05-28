@@ -35,6 +35,7 @@ android {
         targetSdk = 35
         versionCode = 22
         versionName = "1.0.21"
+        buildConfigField("String", "TMDB_API_KEY", "\"02dcbf2c20808c9793141e2e2553d5b6\"")
     }
 
     buildTypes {
@@ -91,4 +92,5 @@ dependencies {
     implementation("androidx.glance:glance-appwidget:1.1.0")
     implementation("androidx.glance:glance-material3:1.1.0")
     implementation("androidx.compose.ui:ui-text-google-fonts")
+    implementation("io.coil-kt:coil-compose:2.7.0")
 }
