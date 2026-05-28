@@ -386,7 +386,35 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
                                 modifier = Modifier.fillMaxWidth().height(300.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator(color = CinemaAccent)
+                                if (state.booksLoading) {
+                                    CircularProgressIndicator(color = CinemaAccent)
+                                } else {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Text("📡", fontSize = 48.sp)
+                                        Text(
+                                            "Impossible de charger les livres",
+                                            color = CinemaTextMuted,
+                                            fontSize = 15.sp,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier.padding(horizontal = 32.dp)
+                                        )
+                                        Surface(
+                                            color = CinemaAccent,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.clickable { vm.loadBooksHome() }
+                                        ) {
+                                            Text(
+                                                "Réessayer",
+                                                color = Color.Black,
+                                                fontWeight = FontWeight.Black,
+                                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
