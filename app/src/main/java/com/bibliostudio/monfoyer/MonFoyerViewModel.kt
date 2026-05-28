@@ -11,6 +11,8 @@ import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
@@ -207,21 +209,17 @@ class MonFoyerViewModel : ViewModel() {
         }
     }
 
-    private suspend fun openLibrarySearch(query: String): List<GoogleBook> {
-        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-        val url = "https://openlibrary.org/search.json?q=$encoded&limit=40&fields=key,title,author_name,first_publish_year,cover_i,ratings_average,number_of_pages_median,language"
+    private suspend fun openLibraryFetch(url: String): List<GoogleBook> {
         val json = withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
         val docs = json.optJSONArray("docs") ?: return emptyList()
-        val all = (0 until docs.length()).mapNotNull { i ->
+        return (0 until docs.length()).mapNotNull { i ->
             val doc = docs.getJSONObject(i)
             val title = doc.optString("title").ifBlank { return@mapNotNull null }
             val coverId = doc.optLong("cover_i", -1L)
             val authorsArr = doc.optJSONArray("author_name")
             val authors = if (authorsArr != null) (0 until authorsArr.length()).map { authorsArr.getString(it) } else emptyList()
             val year = doc.optInt("first_publish_year", 0).let { if (it > 0) it.toString() else "" }
-            val langsArr = doc.optJSONArray("language")
-            val isFrench = langsArr != null && (0 until langsArr.length()).any { langsArr.optString(it) == "fre" }
-            Pair(isFrench, GoogleBook(
+            GoogleBook(
                 id = doc.optString("key"),
                 title = title,
                 authors = authors,
@@ -231,14 +229,21 @@ class MonFoyerViewModel : ViewModel() {
                 pageCount = doc.optInt("number_of_pages_median", 0),
                 averageRating = doc.optDouble("ratings_average", 0.0),
                 thumbnailUrl = if (coverId > 0) "https://covers.openlibrary.org/b/id/$coverId-M.jpg" else ""
-            ))
+            )
         }
-        // French editions first, then others — deduplicated by title+author
-        val seen = mutableSetOf<String>()
-        return (all.filter { it.first } + all.filter { !it.first })
-            .map { it.second }
-            .filter { book -> seen.add("${book.title}|${book.authors.firstOrNull()}") }
-            .take(20)
+    }
+
+    private suspend fun openLibrarySearch(query: String): List<GoogleBook> {
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        val fields = "key,title,author_name,first_publish_year,cover_i,ratings_average,number_of_pages_median"
+        return coroutineScope {
+            val frenchD = async { runCatching { openLibraryFetch("https://openlibrary.org/search.json?q=$encoded+language:fre&limit=20&fields=$fields") }.getOrDefault(emptyList()) }
+            val allD    = async { runCatching { openLibraryFetch("https://openlibrary.org/search.json?q=$encoded&limit=20&fields=$fields") }.getOrDefault(emptyList()) }
+            val seen = mutableSetOf<String>()
+            (frenchD.await() + allD.await())
+                .filter { book -> seen.add("${book.title.lowercase()}|${book.authors.firstOrNull()?.lowercase()}") }
+                .take(20)
+        }
     }
 
     suspend fun fetchBookDescription(bookKey: String): String {
