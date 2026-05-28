@@ -43,6 +43,7 @@ class MonFoyerViewModel : ViewModel() {
     private var appContext: Context? = null
     private var sharedNoteJob: Job? = null
     private var tmdbSearchJob: Job? = null
+    private var booksSearchJob: Job? = null
 
     fun setAppContext(context: Context) {
         appContext = context.applicationContext
@@ -204,6 +205,97 @@ class MonFoyerViewModel : ViewModel() {
             }.getOrDefault(emptyList())
             state = state.copy(tmdbDetailProviders = providers)
         }
+    }
+
+    private suspend fun googleBooksFetch(path: String): org.json.JSONObject {
+        val url = "https://www.googleapis.com/books/v1$path"
+        return withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
+    }
+
+    private fun org.json.JSONObject.toGoogleBook(): GoogleBook {
+        val info = optJSONObject("volumeInfo") ?: return GoogleBook()
+        val authorsArr = info.optJSONArray("authors")
+        val authors = if (authorsArr != null) (0 until authorsArr.length()).map { authorsArr.getString(it) } else emptyList()
+        val thumbnail = info.optJSONObject("imageLinks")?.optString("thumbnail") ?: ""
+        return GoogleBook(
+            id = optString("id"),
+            title = info.optString("title"),
+            authors = authors,
+            description = info.optString("description"),
+            publishedDate = info.optString("publishedDate"),
+            publisher = info.optString("publisher"),
+            pageCount = info.optInt("pageCount"),
+            averageRating = info.optDouble("averageRating", 0.0),
+            thumbnailUrl = thumbnail
+        )
+    }
+
+    private fun org.json.JSONObject.toBooksListFromItems(): List<GoogleBook> {
+        val items = optJSONArray("items") ?: return emptyList()
+        return (0 until items.length()).map { items.getJSONObject(it).toGoogleBook() }
+            .filter { it.title.isNotBlank() }
+    }
+
+    fun loadBooksHome() {
+        viewModelScope.launch {
+            runCatching {
+                val romans = googleBooksFetch("/volumes?q=subject:roman&orderBy=relevance&maxResults=20&langRestrict=fr&printType=books").toBooksListFromItems()
+                val scifi = googleBooksFetch("/volumes?q=subject:science+fiction&orderBy=relevance&maxResults=20&printType=books").toBooksListFromItems()
+                val thriller = googleBooksFetch("/volumes?q=subject:thriller+policier&orderBy=relevance&maxResults=20&langRestrict=fr&printType=books").toBooksListFromItems()
+                Triple(romans, scifi, thriller)
+            }.onSuccess { (romans, scifi, thriller) ->
+                state = state.copy(
+                    booksPopularRomans = romans,
+                    booksPopularScifi = scifi,
+                    booksPopularThriller = thriller
+                )
+            }
+        }
+    }
+
+    fun searchBooks(query: String) {
+        state = state.copy(booksSearchQuery = query)
+        booksSearchJob?.cancel()
+        if (query.isBlank()) {
+            state = state.copy(booksSearchResults = emptyList(), booksSearching = false)
+            return
+        }
+        state = state.copy(booksSearching = true)
+        booksSearchJob = viewModelScope.launch {
+            delay(400)
+            runCatching {
+                val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+                googleBooksFetch("/volumes?q=$encoded&maxResults=20&printType=books").toBooksListFromItems()
+            }.onSuccess { results ->
+                state = state.copy(booksSearchResults = results, booksSearching = false)
+            }.onFailure {
+                state = state.copy(booksSearching = false)
+            }
+        }
+    }
+
+    fun addBookRequest(book: GoogleBook) {
+        val household = state.household ?: return
+        val user = auth.currentUser ?: return
+        val requesterName = state.members.firstOrNull { it.id == user.uid }?.name
+            ?: state.userName.ifBlank { "Membre" }
+        db.collection("households").document(household.id).collection("requests")
+            .add(mapOf(
+                "title" to book.title,
+                "kind" to "Livre",
+                "requesterId" to user.uid,
+                "requesterName" to requesterName,
+                "status" to "pending",
+                "adminNote" to "",
+                "posterUrl" to book.coverUrl,
+                "overview" to book.description,
+                "year" to book.year,
+                "tmdbId" to 0,
+                "voteAverage" to book.averageRating,
+                "createdAt" to FieldValue.serverTimestamp()
+            ))
+            .addOnSuccessListener { logActivity("a demandé le livre \"${book.title}\"") }
+            .addOnFailureListener { setError(it.message ?: "Demande impossible.") }
     }
 
     fun addTmdbRequest(media: TmdbMedia) {

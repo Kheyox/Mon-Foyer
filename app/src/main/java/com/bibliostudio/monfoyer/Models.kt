@@ -77,6 +77,23 @@ data class TmdbProvider(
     val logoUrl get() = if (logoPath.isNotEmpty()) "https://image.tmdb.org/t/p/w45$logoPath" else ""
 }
 
+data class GoogleBook(
+    val id: String = "",
+    val title: String = "",
+    val authors: List<String> = emptyList(),
+    val description: String = "",
+    val publishedDate: String = "",
+    val publisher: String = "",
+    val pageCount: Int = 0,
+    val averageRating: Double = 0.0,
+    val thumbnailUrl: String = ""
+) {
+    val authorsDisplay get() = authors.joinToString(", ").ifEmpty { "Auteur inconnu" }
+    val year get() = publishedDate.take(4)
+    val ratingDisplay get() = if (averageRating > 0) "★ ${"%.1f".format(averageRating)}" else ""
+    val coverUrl get() = thumbnailUrl.replace("http://", "https://").replace("zoom=1", "zoom=0")
+}
+
 data class MediaRequest(
     val id: String = "",
     val title: String = "",
@@ -135,7 +152,13 @@ data class AppUiState(
     val tmdbSearchResults: List<TmdbMedia> = emptyList(),
     val tmdbSearchQuery: String = "",
     val tmdbSearching: Boolean = false,
-    val tmdbDetailProviders: List<TmdbProvider> = emptyList()
+    val tmdbDetailProviders: List<TmdbProvider> = emptyList(),
+    val booksSearchResults: List<GoogleBook> = emptyList(),
+    val booksSearchQuery: String = "",
+    val booksSearching: Boolean = false,
+    val booksPopularRomans: List<GoogleBook> = emptyList(),
+    val booksPopularScifi: List<GoogleBook> = emptyList(),
+    val booksPopularThriller: List<GoogleBook> = emptyList()
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {
