@@ -67,13 +67,15 @@ private val CinemaTextMuted = Color(0xFF9E9E9E)
 @Composable
 fun TmdbScreen(vm: MonFoyerViewModel) {
     LaunchedEffect(Unit) { vm.loadTmdbHome() }
+    LaunchedEffect(Unit) { vm.loadBooksHome() }
 
     val state = vm.state
     val isSearching = state.tmdbSearchQuery.isNotBlank()
     var selectedMedia by remember { mutableStateOf<TmdbMedia?>(null) }
-    var showAddBook by remember { mutableStateOf(false) }
+    var selectedBook by remember { mutableStateOf<GoogleBook?>(null) }
     var confirmDelete by remember { mutableStateOf<MediaRequest?>(null) }
     val isAdmin = state.isCurrentUserAdmin()
+    var selectedTab by remember { mutableStateOf(0) } // 0 = films, 1 = livres
 
     Box(
         modifier = Modifier
@@ -86,203 +88,370 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            // Search bar
+            // Tab chips
             item {
-                Spacer(Modifier.height(12.dp))
-                TmdbSearchBar(
-                    query = state.tmdbSearchQuery,
-                    onQueryChange = { vm.searchTmdb(it) }
-                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TabChip(
+                        text = "🎬 Films & Séries",
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 }
+                    )
+                    TabChip(
+                        text = "📚 Livres",
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 }
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
             }
 
-            if (isSearching) {
-                // Search results
-                if (state.tmdbSearching) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().height(200.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = CinemaAccent)
-                        }
-                    }
-                } else if (state.tmdbSearchResults.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().height(200.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("🎬", fontSize = 48.sp)
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    "Aucun résultat",
-                                    color = CinemaTextMuted,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+            if (selectedTab == 0) {
+                // Search bar
+                item {
+                    Spacer(Modifier.height(4.dp))
+                    TmdbSearchBar(
+                        query = state.tmdbSearchQuery,
+                        onQueryChange = { vm.searchTmdb(it) }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                if (isSearching) {
+                    // Search results
+                    if (state.tmdbSearching) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = CinemaAccent)
                             }
+                        }
+                    } else if (state.tmdbSearchResults.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("🎬", fontSize = 48.sp)
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        "Aucun résultat",
+                                        color = CinemaTextMuted,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Résultats de recherche",
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                        }
+                        item {
+                            TmdbSearchGrid(
+                                results = state.tmdbSearchResults,
+                                onMediaClick = { selectedMedia = it }
+                            )
                         }
                     }
                 } else {
-                    item {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Résultats de recherche",
-                            color = Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 20.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                        Spacer(Modifier.height(12.dp))
+                    // Trending section
+                    if (state.tmdbTrending.isNotEmpty()) {
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            TmdbSectionHeader(emoji = "🔥", title = "Tendances")
+                            Spacer(Modifier.height(10.dp))
+                            TmdbHorizontalRow(
+                                items = state.tmdbTrending,
+                                onItemClick = { selectedMedia = it }
+                            )
+                            Spacer(Modifier.height(20.dp))
+                        }
                     }
-                    item {
-                        TmdbSearchGrid(
-                            results = state.tmdbSearchResults,
-                            onMediaClick = { selectedMedia = it }
-                        )
-                    }
-                }
-            } else {
-                // Trending section
-                if (state.tmdbTrending.isNotEmpty()) {
-                    item {
-                        Spacer(Modifier.height(8.dp))
-                        TmdbSectionHeader(emoji = "🔥", title = "Tendances")
-                        Spacer(Modifier.height(10.dp))
-                        TmdbHorizontalRow(
-                            items = state.tmdbTrending,
-                            onItemClick = { selectedMedia = it }
-                        )
-                        Spacer(Modifier.height(20.dp))
-                    }
-                }
 
-                // Popular movies section
-                if (state.tmdbPopularMovies.isNotEmpty()) {
-                    item {
-                        TmdbSectionHeader(emoji = "🎬", title = "Films populaires")
-                        Spacer(Modifier.height(10.dp))
-                        TmdbHorizontalRow(
-                            items = state.tmdbPopularMovies,
-                            onItemClick = { selectedMedia = it }
-                        )
-                        Spacer(Modifier.height(20.dp))
+                    // Popular movies section
+                    if (state.tmdbPopularMovies.isNotEmpty()) {
+                        item {
+                            TmdbSectionHeader(emoji = "🎬", title = "Films populaires")
+                            Spacer(Modifier.height(10.dp))
+                            TmdbHorizontalRow(
+                                items = state.tmdbPopularMovies,
+                                onItemClick = { selectedMedia = it }
+                            )
+                            Spacer(Modifier.height(20.dp))
+                        }
                     }
-                }
 
-                // Popular TV section
-                if (state.tmdbPopularTv.isNotEmpty()) {
-                    item {
-                        TmdbSectionHeader(emoji = "📺", title = "Séries populaires")
-                        Spacer(Modifier.height(10.dp))
-                        TmdbHorizontalRow(
-                            items = state.tmdbPopularTv,
-                            onItemClick = { selectedMedia = it }
-                        )
-                        Spacer(Modifier.height(20.dp))
+                    // Popular TV section
+                    if (state.tmdbPopularTv.isNotEmpty()) {
+                        item {
+                            TmdbSectionHeader(emoji = "📺", title = "Séries populaires")
+                            Spacer(Modifier.height(10.dp))
+                            TmdbHorizontalRow(
+                                items = state.tmdbPopularTv,
+                                onItemClick = { selectedMedia = it }
+                            )
+                            Spacer(Modifier.height(20.dp))
+                        }
                     }
-                }
 
-                // Loading state when nothing loaded yet
-                if (state.tmdbTrending.isEmpty() && state.tmdbPopularMovies.isEmpty() && state.tmdbPopularTv.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().height(300.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = CinemaAccent)
+                    // Loading state when nothing loaded yet
+                    if (state.tmdbTrending.isEmpty() && state.tmdbPopularMovies.isEmpty() && state.tmdbPopularTv.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(300.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = CinemaAccent)
+                            }
                         }
                     }
                 }
-            }
 
-            // Divider and household requests section
-            item {
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Color(0xFF2C2C2E))
-                )
-                Spacer(Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                // Divider and household requests section (films tab — all non-book requests)
+                item {
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFF2C2C2E))
+                    )
+                    Spacer(Modifier.height(20.dp))
                     Text(
                         "Demandes du foyer",
                         color = Color.White,
                         fontWeight = FontWeight.Black,
                         fontSize = 22.sp,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                    // Add book button
-                    Surface(
-                        color = CinemaCard,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.clickable { showAddBook = true }
-                    ) {
-                        Row(
-                            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                val filmRequests = state.mediaRequests.filter { it.kind != "Livre" }
+                if (filmRequests.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                Icons.Filled.Add,
-                                contentDescription = "Ajouter un livre",
-                                tint = CinemaAccent,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text("📚 Livre", color = CinemaAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(vertical = 32.dp)
+                            ) {
+                                Text("🎬", fontSize = 40.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Aucune demande",
+                                    color = CinemaTextMuted,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Cherche un film ou une série à demander",
+                                    color = Color(0xFF6E6E73),
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
                         }
                     }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            if (state.mediaRequests.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(vertical = 32.dp)
-                        ) {
-                            Text("🎬", fontSize = 40.sp)
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "Aucune demande",
-                                color = CinemaTextMuted,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                "Cherche un film, une série ou un livre à demander",
-                                color = Color(0xFF6E6E73),
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
+                } else {
+                    items(filmRequests) { request ->
+                        TmdbRequestCard(
+                            request = request,
+                            canModerate = isAdmin && request.status == "pending",
+                            canDelete = isAdmin || request.requesterId == state.currentUserId,
+                            onApprove = { vm.updateMediaRequestStatus(request, "approved") },
+                            onReject = { vm.updateMediaRequestStatus(request, "rejected") },
+                            onDelete = { confirmDelete = request }
+                        )
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
             } else {
-                items(state.mediaRequests) { request ->
-                    TmdbRequestCard(
-                        request = request,
-                        canModerate = isAdmin && request.status == "pending",
-                        canDelete = isAdmin || request.requesterId == state.currentUserId,
-                        onApprove = { vm.updateMediaRequestStatus(request, "approved") },
-                        onReject = { vm.updateMediaRequestStatus(request, "rejected") },
-                        onDelete = { confirmDelete = request }
+                // ── Books tab ──────────────────────────────────────────────
+                val isBooksSearching = state.booksSearchQuery.isNotBlank()
+
+                // Books search bar
+                item {
+                    Spacer(Modifier.height(4.dp))
+                    BooksSearchBar(
+                        query = state.booksSearchQuery,
+                        onQueryChange = { vm.searchBooks(it) }
                     )
                     Spacer(Modifier.height(8.dp))
+                }
+
+                if (isBooksSearching) {
+                    if (state.booksSearching) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = CinemaAccent)
+                            }
+                        }
+                    } else if (state.booksSearchResults.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("📚", fontSize = 48.sp)
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        "Aucun résultat",
+                                        color = CinemaTextMuted,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Résultats de recherche",
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                        }
+                        item {
+                            BooksSearchGrid(
+                                results = state.booksSearchResults,
+                                onBookClick = { selectedBook = it }
+                            )
+                        }
+                    }
+                } else {
+                    // Browse categories
+                    if (state.booksPopularRomans.isNotEmpty()) {
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            TmdbSectionHeader(emoji = "📚", title = "Romans")
+                            Spacer(Modifier.height(10.dp))
+                            BooksHorizontalRow(
+                                books = state.booksPopularRomans,
+                                onBookClick = { selectedBook = it }
+                            )
+                            Spacer(Modifier.height(20.dp))
+                        }
+                    }
+                    if (state.booksPopularScifi.isNotEmpty()) {
+                        item {
+                            TmdbSectionHeader(emoji = "🚀", title = "Science-Fiction")
+                            Spacer(Modifier.height(10.dp))
+                            BooksHorizontalRow(
+                                books = state.booksPopularScifi,
+                                onBookClick = { selectedBook = it }
+                            )
+                            Spacer(Modifier.height(20.dp))
+                        }
+                    }
+                    if (state.booksPopularThriller.isNotEmpty()) {
+                        item {
+                            TmdbSectionHeader(emoji = "🔪", title = "Thrillers")
+                            Spacer(Modifier.height(10.dp))
+                            BooksHorizontalRow(
+                                books = state.booksPopularThriller,
+                                onBookClick = { selectedBook = it }
+                            )
+                            Spacer(Modifier.height(20.dp))
+                        }
+                    }
+                    if (state.booksPopularRomans.isEmpty() && state.booksPopularScifi.isEmpty() && state.booksPopularThriller.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(300.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = CinemaAccent)
+                            }
+                        }
+                    }
+                }
+
+                // Book requests section
+                item {
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFF2C2C2E))
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Text(
+                        "Demandes de livres",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 22.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                val bookRequests = state.mediaRequests.filter { it.kind == "Livre" }
+                if (bookRequests.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(vertical = 32.dp)
+                            ) {
+                                Text("📚", fontSize = 40.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Aucune demande",
+                                    color = CinemaTextMuted,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Cherche un livre à demander au foyer",
+                                    color = Color(0xFF6E6E73),
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(bookRequests) { request ->
+                        TmdbRequestCard(
+                            request = request,
+                            canModerate = isAdmin && request.status == "pending",
+                            canDelete = isAdmin || request.requesterId == state.currentUserId,
+                            onApprove = { vm.updateMediaRequestStatus(request, "approved") },
+                            onReject = { vm.updateMediaRequestStatus(request, "rejected") },
+                            onDelete = { confirmDelete = request }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
 
@@ -290,7 +459,7 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
         }
     }
 
-    // Detail bottom sheet
+    // Detail bottom sheet (films)
     selectedMedia?.let { media ->
         TmdbDetailSheet(
             media = media,
@@ -305,14 +474,15 @@ fun TmdbScreen(vm: MonFoyerViewModel) {
         )
     }
 
-    // Add book sheet
-    if (showAddBook) {
-        AddMediaRequestSheet(
-            kind = "Livre",
-            onDismiss = { showAddBook = false },
-            onAdd = { title ->
-                vm.addMediaRequest(title, "Livre")
-                showAddBook = false
+    // Detail bottom sheet (books)
+    selectedBook?.let { book ->
+        BookDetailSheet(
+            book = book,
+            alreadyRequested = state.mediaRequests.any { it.title == book.title && it.kind == "Livre" && it.status != "rejected" },
+            onDismiss = { selectedBook = null },
+            onRequest = {
+                vm.addBookRequest(book)
+                selectedBook = null
             }
         )
     }
@@ -793,6 +963,323 @@ private fun TmdbDetailSheet(
                 }
 
                 Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        color = if (selected) CinemaAccent else CinemaCard,
+        shape = RoundedCornerShape(50),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(
+            text,
+            color = if (selected) Color(0xFF1C1C1E) else CinemaTextMuted,
+            fontWeight = if (selected) FontWeight.Black else FontWeight.Bold,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+    }
+}
+
+@Composable
+private fun BooksSearchBar(query: String, onQueryChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        placeholder = {
+            Text(
+                "Chercher un livre, un auteur…",
+                color = CinemaTextMuted,
+                fontSize = 16.sp
+            )
+        },
+        leadingIcon = {
+            Icon(
+                Icons.Filled.Search,
+                contentDescription = null,
+                tint = CinemaTextMuted,
+                modifier = Modifier.size(22.dp)
+            )
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+        shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = CinemaAccent,
+            unfocusedBorderColor = Color(0xFF3A3A3C),
+            focusedContainerColor = CinemaCard,
+            unfocusedContainerColor = CinemaCard,
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            cursorColor = CinemaAccent
+        ),
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    )
+}
+
+@Composable
+private fun BooksHorizontalRow(
+    books: List<GoogleBook>,
+    onBookClick: (GoogleBook) -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        items(books) { book ->
+            BookCoverCard(book = book, onClick = { onBookClick(book) })
+        }
+    }
+}
+
+@Composable
+private fun BooksSearchGrid(
+    results: List<GoogleBook>,
+    onBookClick: (GoogleBook) -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp.dp
+    val cardWidth = (screenWidthDp - 48.dp) / 2
+    val cardHeight = cardWidth * 1.5f
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        userScrollEnabled = false,
+        modifier = Modifier.height(
+            ((results.size + 1) / 2 * (cardHeight.value.toInt() + 10) + 16).dp
+        )
+    ) {
+        gridItems(results) { book ->
+            BookCoverCard(
+                book = book,
+                onClick = { onBookClick(book) },
+                overrideWidth = cardWidth,
+                overrideHeight = cardHeight
+            )
+        }
+    }
+}
+
+@Composable
+private fun BookCoverCard(
+    book: GoogleBook,
+    onClick: () -> Unit,
+    overrideWidth: androidx.compose.ui.unit.Dp = 110.dp,
+    overrideHeight: androidx.compose.ui.unit.Dp = 165.dp
+) {
+    Surface(
+        color = CinemaCard,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .width(overrideWidth)
+            .height(overrideHeight)
+            .clickable(onClick = onClick)
+    ) {
+        Box {
+            if (book.coverUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = book.coverUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(CinemaCardDark),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📚", fontSize = 32.sp)
+                }
+            }
+            // Bottom gradient + title
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color(0xDD000000))
+                        )
+                    )
+                    .padding(6.dp)
+            ) {
+                Text(
+                    book.title,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            // Rating badge if available
+            if (book.averageRating > 0) {
+                Surface(
+                    color = CinemaAccent,
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                ) {
+                    Text(
+                        book.ratingDisplay,
+                        color = Color(0xFF1C1C1E),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BookDetailSheet(
+    book: GoogleBook,
+    alreadyRequested: Boolean,
+    onDismiss: () -> Unit,
+    onRequest: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = CinemaCard
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+        ) {
+            item {
+                // Cover + info row
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Book cover
+                    Surface(
+                        color = CinemaCardDark,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .width(100.dp)
+                            .height(150.dp)
+                    ) {
+                        if (book.coverUrl.isNotEmpty()) {
+                            AsyncImage(
+                                model = book.coverUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(12.dp))
+                            )
+                        } else {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("📚", fontSize = 40.sp)
+                            }
+                        }
+                    }
+                    // Info
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            book.title,
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp,
+                            lineHeight = 22.sp
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            book.authorsDisplay,
+                            color = CinemaAccent,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (book.year.isNotEmpty()) {
+                            Text(book.year, color = CinemaTextMuted, fontSize = 13.sp)
+                        }
+                        if (book.pageCount > 0) {
+                            Text("${book.pageCount} pages", color = CinemaTextMuted, fontSize = 13.sp)
+                        }
+                        if (book.publisher.isNotEmpty()) {
+                            Text(
+                                book.publisher,
+                                color = CinemaTextMuted,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (book.ratingDisplay.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            Surface(
+                                color = CinemaAccent,
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    book.ratingDisplay,
+                                    color = Color(0xFF1C1C1E),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                // Description
+                if (book.description.isNotEmpty()) {
+                    Text(
+                        "Synopsis",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 16.sp
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        book.description,
+                        color = CinemaTextMuted,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        maxLines = 8,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(20.dp))
+                }
+                // Request button
+                Surface(
+                    color = if (alreadyRequested) CinemaCard else Color(0xFF174C43),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .clickable(enabled = !alreadyRequested, onClick = onRequest)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            if (alreadyRequested) "✓ Déjà demandé" else "📚 Demander au foyer",
+                            color = if (alreadyRequested) CinemaTextMuted else Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
             }
         }
     }
