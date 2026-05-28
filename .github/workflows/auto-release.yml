@@ -31,7 +31,26 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin ${{ github.ref_name }}
-          git merge origin/${{ github.ref_name }} --no-ff -m "chore: merge ${{ github.ref_name }}"
+          # Merge; if build.gradle.kts conflicts (version bump race), resolve with main's version
+          git merge origin/${{ github.ref_name }} --no-ff -m "chore: merge ${{ github.ref_name }}" || {
+            git checkout HEAD -- app/build.gradle.kts
+            git add app/build.gradle.kts
+            git commit -m "chore: merge ${{ github.ref_name }} (version conflict auto-resolved)"
+          }
+          # Patch in any buildConfigField / new deps from the feature branch not yet in main
+          FEATURE=$(git show origin/${{ github.ref_name }}:app/build.gradle.kts 2>/dev/null || true)
+          echo "$FEATURE" | grep -E '^\s*buildConfigField' | while IFS= read -r line; do
+            key=$(echo "$line" | grep -oP '(?<=buildConfigField\(")[^"]+")' || echo "$line")
+            grep -qF "${key}" app/build.gradle.kts 2>/dev/null || \
+              sed -i "/versionName = /a\\        ${line## }" app/build.gradle.kts
+          done
+          echo "$FEATURE" | grep -E '^\s*implementation\(' | while IFS= read -r line; do
+            lib=$(echo "$line" | grep -oP '(?<=implementation\()[^)]+')
+            grep -qF "${lib}" app/build.gradle.kts 2>/dev/null || \
+              sed -i "/compose.ui:ui-text-google-fonts/a\\    ${line## }" app/build.gradle.kts
+          done
+          git add app/build.gradle.kts
+          git diff --cached --quiet || git commit -m "chore: patch build.gradle.kts extras from ${{ github.ref_name }}"
 
       - name: Bump version
         id: version
