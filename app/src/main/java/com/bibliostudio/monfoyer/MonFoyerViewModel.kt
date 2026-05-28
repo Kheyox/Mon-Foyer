@@ -11,6 +11,8 @@ import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
@@ -247,10 +249,12 @@ class MonFoyerViewModel : ViewModel() {
         state = state.copy(booksLoading = true)
         viewModelScope.launch {
             runCatching {
-                val romans = googleBooksFetch("/volumes?q=subject:roman&orderBy=relevance&maxResults=20&langRestrict=fr&printType=books").toBooksListFromItems()
-                val scifi = googleBooksFetch("/volumes?q=subject:science+fiction&orderBy=relevance&maxResults=20&printType=books").toBooksListFromItems()
-                val thriller = googleBooksFetch("/volumes?q=subject:thriller+policier&orderBy=relevance&maxResults=20&langRestrict=fr&printType=books").toBooksListFromItems()
-                Triple(romans, scifi, thriller)
+                coroutineScope {
+                    val romans = async { runCatching { googleBooksFetch("/volumes?q=bestsellers+roman+francais&langRestrict=fr&orderBy=relevance&maxResults=20&printType=books").toBooksListFromItems() }.getOrDefault(emptyList()) }
+                    val scifi = async { runCatching { googleBooksFetch("/volumes?q=subject:science+fiction&orderBy=relevance&maxResults=20&printType=books").toBooksListFromItems() }.getOrDefault(emptyList()) }
+                    val thriller = async { runCatching { googleBooksFetch("/volumes?q=subject:thriller&orderBy=relevance&maxResults=20&printType=books").toBooksListFromItems() }.getOrDefault(emptyList()) }
+                    Triple(romans.await(), scifi.await(), thriller.await())
+                }
             }.onSuccess { (romans, scifi, thriller) ->
                 state = state.copy(
                     booksLoading = false,
