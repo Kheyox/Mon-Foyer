@@ -374,13 +374,22 @@ fun CenterMessage(message: String) {
 fun BoxScope.FloatingHomeButton(visible: Boolean, onClick: () -> Unit) {
     if (!visible) return
     Surface(
-        color = Color.White,
-        shape = CircleShape,
-        shadowElevation = 10.dp,
-        modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(28.dp).size(76.dp).clickable(onClick = onClick)
+        color = Color(0xEE1C1C1E),
+        shape = RoundedCornerShape(50),
+        shadowElevation = 12.dp,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .navigationBarsPadding()
+            .padding(bottom = 20.dp)
+            .clickable(onClick = onClick)
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.Home, contentDescription = "Accueil", tint = DeepGreen, modifier = Modifier.size(38.dp))
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(Icons.Filled.Home, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Text("Accueil", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
