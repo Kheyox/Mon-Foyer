@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Surface
@@ -53,7 +54,8 @@ fun Dashboard(vm: MonFoyerViewModel) {
         ModuleTile(Tab.Requests, "Demandes", "Films, series et livres", state.pendingRequestCount().takeIf { it > 0 }?.toString(), listOf(Color(0xFFE5D8FF), Color(0xFFC9D9FF)), Icons.Filled.ViewList, "🎬", Color(0xFF6B63D8)),
         ModuleTile(Tab.Birthdays, "Anniversaires", "Les dates a ne pas oublier", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD6E3), Color(0xFFD8CBFF)), Icons.Filled.Group, "🎂", Color(0xFFB256B4)),
         ModuleTile(Tab.Notes, "Notes", "Idees et pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD9B8), Color(0xFFFFB8A8)), Icons.Filled.EditNote, "📝", Clay),
-        ModuleTile(Tab.Members, "Foyer", "Membres, couleurs et invitation", state.members.size.toString(), listOf(Color(0xFFD6F4EF), Color(0xFFBCE8F5)), Icons.Filled.Group, "🏡", DeepGreen)
+        ModuleTile(Tab.Members, "Foyer", "Membres, couleurs et invitation", state.members.size.toString(), listOf(Color(0xFFD6F4EF), Color(0xFFBCE8F5)), Icons.Filled.Group, "🏡", DeepGreen),
+        ModuleTile(Tab.Budget, "Budget", "Charges, loyer et factures", state.bills.count { !it.paid }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFF8E1), Color(0xFFFFECB3)), Icons.Filled.Payments, "💶", Color(0xFFFF8F00))
     )
     val visibleModules = modules.toMutableList().apply {
         add(
@@ -118,7 +120,7 @@ fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(82.dp)
-            .background(Brush.horizontalGradient(tile.gradients), RoundedCornerShape(20.dp))
+            .background(Brush.horizontalGradient(tile.colors), RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
     ) {
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {

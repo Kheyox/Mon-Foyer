@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -122,6 +123,13 @@ data class UpdateInfo(
     val apkUrl: String = "",
     val notes: String = ""
 )
+data class FoyerNotification(
+    val id: String = "",
+    val title: String = "",
+    val body: String = "",
+    val read: Boolean = false,
+    val createdAtMillis: Long = 0L
+)
 
 data class AppUiState(
     val signedIn: Boolean = false,
@@ -156,7 +164,8 @@ data class AppUiState(
     val booksSearchResults: List<GoogleBook> = emptyList(),
     val booksSearchQuery: String = "",
     val booksSearching: Boolean = false,
-    val booksSearchError: Boolean = false
+    val booksSearchError: Boolean = false,
+    val notifications: List<FoyerNotification> = emptyList()
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {
@@ -168,7 +177,8 @@ enum class Tab(val label: String, val icon: ImageVector) {
     Activity("Activite", Icons.Filled.ViewList),
     Birthdays("Anniversaires", Icons.Filled.Group),
     Notes("Notes", Icons.Filled.EditNote),
-    Members("Foyer", Icons.Filled.Group)
+    Members("Foyer", Icons.Filled.Group),
+    Budget("Budget", Icons.Filled.Payments)
 }
 
 data class ModuleTile(
