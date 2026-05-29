@@ -46,6 +46,7 @@ class MonFoyerViewModel : ViewModel() {
     private var sharedNoteJob: Job? = null
     private var tmdbSearchJob: Job? = null
     private var booksSearchJob: Job? = null
+    private val appStartTime = System.currentTimeMillis()
 
     fun setAppContext(context: Context) {
         appContext = context.applicationContext
@@ -542,6 +543,9 @@ class MonFoyerViewModel : ViewModel() {
                 "priority" to priority
             )
         ) { "a ajoute la tache $title" }
+        if (member != null && member.id != state.currentUserId) {
+            sendNotification(member.id, "Nouvelle tâche assignée 📋", "${state.userName} vous a assigné : $title")
+        }
     }
 
     // Point 4d: updateTask accepts repeatInterval and priority
@@ -639,7 +643,13 @@ class MonFoyerViewModel : ViewModel() {
         if (!state.isCurrentUserAdmin()) return
         db.collection("households").document(household.id).collection("requests").document(request.id)
             .update(mapOf("status" to status, "updatedAt" to FieldValue.serverTimestamp()))
-            .addOnSuccessListener { logActivity("a marque ${request.title} comme ${status.mediaStatusLabel().lowercase()}") }
+            .addOnSuccessListener {
+                logActivity("a marque ${request.title} comme ${status.mediaStatusLabel().lowercase()}")
+                if (request.requesterId != state.currentUserId) {
+                    val emoji = if (status == "done") "✅" else "❌"
+                    sendNotification(request.requesterId, "Demande $emoji", "\"${request.title}\" : ${status.mediaStatusLabel()}")
+                }
+            }
             .addOnFailureListener { setError(it.message ?: "Modification impossible.") }
     }
 
@@ -809,6 +819,18 @@ class MonFoyerViewModel : ViewModel() {
         db.collection("households").document(household.id).collection(collection)
             .add(cleanValues + mapOf("createdAt" to FieldValue.serverTimestamp()))
             .addOnSuccessListener { activityText?.let { logActivity(it()) } }
+    }
+
+    private fun sendNotification(targetUserId: String, title: String, body: String) {
+        if (targetUserId.isBlank() || targetUserId == state.currentUserId) return
+        db.collection("users").document(targetUserId)
+            .collection("notifications")
+            .add(mapOf(
+                "title" to title,
+                "body" to body,
+                "read" to false,
+                "createdAtMillis" to System.currentTimeMillis()
+            ))
     }
 
     private fun activityPayload(text: String): Map<String, Any> {
@@ -989,6 +1011,36 @@ class MonFoyerViewModel : ViewModel() {
                     )
                 }.orEmpty())
             }
+
+        val uid = state.currentUserId
+        if (uid.isNotBlank()) {
+            listeners += db.collection("users").document(uid)
+                .collection("notifications")
+                .whereEqualTo("read", false)
+                .limit(20)
+                .addSnapshotListener { snap, _ ->
+                    val newNotifs = snap?.documents?.map {
+                        FoyerNotification(
+                            id = it.id,
+                            title = it.getString("title") ?: "Mon Foyer",
+                            body = it.getString("body") ?: "",
+                            read = false,
+                            createdAtMillis = it.getLong("createdAtMillis") ?: 0L
+                        )
+                    }.orEmpty()
+                    val prevIds = state.notifications.map { it.id }.toSet()
+                    newNotifs
+                        .filter { it.id !in prevIds && it.createdAtMillis > appStartTime }
+                        .forEach { notif ->
+                            appContext?.let { ctx ->
+                                ReminderReceiver.showNow(ctx, notif.id.hashCode(), notif.title, notif.body)
+                            }
+                            db.collection("users").document(uid)
+                                .collection("notifications").document(notif.id).update("read", true)
+                        }
+                    state = state.copy(notifications = newNotifs)
+                }
+        }
 
         // Point 7: birthdays and eventTypes as one-shot get() calls
         refreshBirthdays()
