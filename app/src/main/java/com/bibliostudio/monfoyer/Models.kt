@@ -126,6 +126,12 @@ data class UpdateInfo(
     val apkUrl: String = "",
     val notes: String = ""
 )
+data class SnackbarEvent(
+    val id: Long,
+    val message: String,
+    val actionLabel: String? = null,
+    val action: (() -> Unit)? = null
+)
 data class FoyerNotification(
     val id: String = "",
     val title: String = "",
@@ -202,7 +208,9 @@ data class AppUiState(
     val notifications: List<FoyerNotification> = emptyList(),
     val expenses: List<Expense> = emptyList(),
     val recipes: List<Recipe> = emptyList(),
-    val contacts: List<FoyerContact> = emptyList()
+    val contacts: List<FoyerContact> = emptyList(),
+    // Ids masques optimistiquement pendant la fenetre d'annulation (suppression differee).
+    val hiddenIds: Set<String> = emptySet()
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {

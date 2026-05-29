@@ -71,28 +71,29 @@ fun NotesScreen(vm: MonFoyerViewModel) {
             Spacer(Modifier.height(10.dp))
             SoftInput(value = body, onValueChange = { body = it }, label = "Note", minLines = 3)
             Spacer(Modifier.height(10.dp))
-            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add) {
+            PrimaryButton(text = "Ajouter", icon = Icons.Filled.Add, enabled = title.isNotBlank() || body.isNotBlank()) {
                 vm.addNote(title, body)
                 title = ""
                 body = ""
             }
         }
-        if (vm.state.notes.isEmpty()) {
+        val visibleNotes = vm.state.notes.filterNot { it.id in vm.state.hiddenIds }
+        if (visibleNotes.isEmpty()) {
             item { EmptyState("📝", "Aucune note", "Note une idee, un code, ou une petite info a garder.") }
         }
-        items(vm.state.notes) { note ->
+        items(visibleNotes, key = { it.id }) { note ->
             Surface(
                 color = Color.White,
                 shape = RoundedCornerShape(AppRadius),
                 border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
-                modifier = Modifier.fillMaxWidth().clickable { editingNote = note }
+                modifier = Modifier.fillMaxWidth().animateItem().clickable { editingNote = note }
             ) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(note.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
-                        Text(note.body, fontSize = 16.sp, color = Muted)
+                        Text(note.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(note.body, fontSize = 16.sp, color = Muted, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
-                    DeleteButton { vm.delete("notes", note.id) }
+                    DeleteButton { vm.deleteWithUndo("notes", note.id, note.title.ifBlank { "Note" }) }
                 }
             }
         }

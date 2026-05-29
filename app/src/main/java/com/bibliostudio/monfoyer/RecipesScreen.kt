@@ -285,8 +285,8 @@ fun AddRecipeSheet(
             }
         }
         Spacer(Modifier.height(22.dp))
-        PrimaryButton("Enregistrer la recette", Icons.Filled.Check) {
-            if (canAdd) onAdd(title.trim(), emoji, description.trim(), ingredients.filter { it.isNotBlank() }, steps.filter { it.isNotBlank() }, servings.toIntOrNull() ?: 2, prepMinutes.toIntOrNull() ?: 0)
+        PrimaryButton("Enregistrer la recette", Icons.Filled.Check, enabled = canAdd) {
+            onAdd(title.trim(), emoji, description.trim(), ingredients.filter { it.isNotBlank() }, steps.filter { it.isNotBlank() }, servings.toIntOrNull() ?: 2, prepMinutes.toIntOrNull() ?: 0)
         }
     }
 }

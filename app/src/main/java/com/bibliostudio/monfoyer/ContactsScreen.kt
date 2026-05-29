@@ -74,7 +74,7 @@ fun ContactsScreen(vm: MonFoyerViewModel) {
                     Text(category, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Muted)
                     Spacer(Modifier.height(8.dp))
                 }
-                items(list) { contact ->
+                items(list, key = { it.id }) { contact ->
                     ContactCard(contact = contact, onEdit = { editing = contact }, onDelete = { toDelete = contact })
                 }
             }
@@ -224,8 +224,8 @@ fun AddContactSheet(
             }
         }
         Spacer(Modifier.height(22.dp))
-        PrimaryButton(if (existing == null) "Ajouter" else "Enregistrer", Icons.Filled.Check) {
-            if (canSave) onSave(name.trim(), role.trim(), phone.trim(), email.trim(), note.trim(), emoji, category)
+        PrimaryButton(if (existing == null) "Ajouter" else "Enregistrer", Icons.Filled.Check, enabled = canSave) {
+            onSave(name.trim(), role.trim(), phone.trim(), email.trim(), note.trim(), emoji, category)
         }
     }
 }

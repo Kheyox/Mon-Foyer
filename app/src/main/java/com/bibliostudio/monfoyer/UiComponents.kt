@@ -268,11 +268,16 @@ fun SoftInput(
 }
 
 @Composable
-fun PrimaryButton(text: String, icon: ImageVector, onClick: () -> Unit) {
+fun PrimaryButton(text: String, icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         shape = RoundedCornerShape(FieldRadius),
-        colors = ButtonDefaults.buttonColors(containerColor = DeepGreen),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = DeepGreen,
+            disabledContainerColor = Color(0xFFE1E1E1),
+            disabledContentColor = Muted
+        ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 0.dp),
         modifier = Modifier.fillMaxWidth().height(64.dp)
     ) {
@@ -610,6 +615,73 @@ fun <T> PickerColumn(
                             color = if (isSelected) Ink else Muted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Snackbar maison : pilule sombre en bas, auto-disparition, action optionnelle (ex. Annuler).
+ * Pilotee par un SnackbarEvent porteur d'un id unique (re-declenche l'affichage).
+ */
+@Composable
+fun FoyerSnackbar(event: SnackbarEvent?, modifier: Modifier = Modifier) {
+    var visible by remember { mutableStateOf(false) }
+    var current by remember { mutableStateOf<SnackbarEvent?>(null) }
+
+    LaunchedEffect(event?.id) {
+        if (event != null) {
+            current = event
+            visible = true
+            kotlinx.coroutines.delay(if (event.action != null) 4200 else 2600)
+            visible = false
+        }
+    }
+
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible && current != null,
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it / 2 },
+        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { it / 2 },
+        modifier = modifier
+    ) {
+        val evt = current
+        Surface(
+            color = Color(0xF21C1C1E),
+            shape = RoundedCornerShape(16.dp),
+            shadowElevation = 10.dp,
+            modifier = Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 86.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 18.dp, end = 8.dp).height(52.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    evt?.message ?: "",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (evt?.actionLabel != null) {
+                    Spacer(Modifier.width(12.dp))
+                    Surface(
+                        color = Color.Transparent,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.clickable {
+                            visible = false
+                            evt.action?.invoke()
+                        }
+                    ) {
+                        Text(
+                            evt.actionLabel,
+                            color = Lemon,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                         )
                     }
                 }

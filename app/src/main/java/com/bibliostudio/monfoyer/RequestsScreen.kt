@@ -110,7 +110,7 @@ fun RequestsScreen(vm: MonFoyerViewModel) {
                 )
             }
         }
-        items(requests) { request ->
+        items(requests, key = { it.id }) { request ->
             MediaRequestCard(
                 request = request,
                 canModerate = isAdmin && request.status == "pending",

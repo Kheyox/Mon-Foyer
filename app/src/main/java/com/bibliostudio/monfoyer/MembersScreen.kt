@@ -120,7 +120,7 @@ fun MembersScreen(vm: MonFoyerViewModel) {
                 }
             }
         }
-        items(state.members.sortedWith(compareByDescending<Member> { it.role == "admin" }.thenBy { it.name.ifBlank { it.email } })) { member ->
+        items(state.members.sortedWith(compareByDescending<Member> { it.role == "admin" }.thenBy { it.name.ifBlank { it.email } }), key = { it.id }) { member ->
             val canEdit = isAdmin || member.id == state.currentUserId
             MemberProfileCard(
                 member = member,

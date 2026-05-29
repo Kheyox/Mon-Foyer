@@ -29,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -45,7 +47,13 @@ fun ShoppingScreen(vm: MonFoyerViewModel) {
         vm.state.shopping.filter { it.favorite }.distinctBy { it.name }
     } else emptyList()
     val favoriteItems = vm.state.shopping.filter { it.favorite && !it.done }.distinctBy { it.name }.take(4)
-    val sortedItems = vm.state.shopping.sortedWith(compareBy<ShoppingItem> { it.done }.thenBy { it.category }.thenBy { it.name })
+    val hiddenIds = vm.state.hiddenIds
+    val sortedItems = remember(vm.state.shopping, hiddenIds) {
+        vm.state.shopping
+            .filterNot { it.id in hiddenIds }
+            .sortedWith(compareBy<ShoppingItem> { it.done }.thenBy { it.category }.thenBy { it.name })
+    }
+    val haptic = LocalHapticFeedback.current
     ModulePanel(title = "Liste de course") {
         item {
             QuickAdd(value = name, onChange = { name = it }, label = "Ajouter un article...") {
@@ -96,16 +104,22 @@ fun ShoppingScreen(vm: MonFoyerViewModel) {
         if (sortedItems.isEmpty()) {
             item { EmptyState("🛒", "Liste vide", "Ajoute un article, avec une quantite si besoin : 2 lait.") }
         }
-        items(sortedItems) { item ->
+        items(sortedItems, key = { it.id }) { item ->
             Surface(
                 color = Color.White,
                 shape = RoundedCornerShape(AppRadius),
                 border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
-                modifier = Modifier.fillMaxWidth().clickable { editingItem = item }
+                modifier = Modifier.fillMaxWidth().animateItem().clickable { editingItem = item }
             ) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { vm.toggleShopping(item) }, modifier = Modifier.size(48.dp)) {
-                        Icon(if (item.done) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Etat", tint = if (item.done) DeepGreen else Color(0xFFDADADA), modifier = Modifier.size(34.dp))
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            vm.toggleShopping(item)
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(if (item.done) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = if (item.done) "Coche, decocher" else "Cocher", tint = if (item.done) DeepGreen else Color(0xFFDADADA), modifier = Modifier.size(34.dp))
                     }
                     androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
                         Text(item.name, fontSize = 24.sp, color = Ink, fontWeight = FontWeight.Bold)
@@ -118,7 +132,7 @@ fun ShoppingScreen(vm: MonFoyerViewModel) {
                         fontWeight = FontWeight.Black,
                         modifier = Modifier.clickable { vm.toggleShoppingFavorite(item) }.padding(horizontal = 8.dp)
                     )
-                    DeleteButton { vm.delete("shoppingItems", item.id) }
+                    DeleteButton { vm.deleteWithUndo("shoppingItems", item.id, item.name) }
                 }
             }
         }

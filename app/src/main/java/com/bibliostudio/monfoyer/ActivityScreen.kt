@@ -35,7 +35,7 @@ fun ActivityScreen(vm: MonFoyerViewModel) {
                 )
             }
         } else {
-            items(activity) { item ->
+            items(activity, key = { it.id }) { item ->
                 Surface(
                     color = Color.White,
                     shape = RoundedCornerShape(AppRadius),

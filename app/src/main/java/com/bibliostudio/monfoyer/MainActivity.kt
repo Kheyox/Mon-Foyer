@@ -314,6 +314,10 @@ fun HomeShell(vm: MonFoyerViewModel) {
             }
         }
         FloatingHomeButton(visible = vm.state.selectedTab != Tab.Home, onClick = { vm.select(Tab.Home) })
+        FoyerSnackbar(
+            event = vm.snackbar,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
         vm.state.updateInfo?.let { update ->
             UpdateAvailableDialog(
                 update = update,

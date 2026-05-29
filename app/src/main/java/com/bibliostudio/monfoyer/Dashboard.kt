@@ -106,11 +106,11 @@ fun Dashboard(vm: MonFoyerViewModel) {
             )
             Spacer(Modifier.height(16.dp))
         }
-        item { HomeInsightStrip(state) }
+        item { HomeInsightStrip(state, onNavigate = { vm.select(it) }) }
         if (state.members.isNotEmpty()) {
             item { MemberColorStrip(state.members) }
         }
-        items(visibleModules) { tile ->
+        items(visibleModules, key = { it.tab }) { tile ->
             ModuleCard(tile = tile, onClick = { vm.select(tile.tab) })
         }
         item { Spacer(Modifier.height(76.dp)) }
@@ -191,7 +191,7 @@ fun MemberColorStrip(members: List<Member>) {
 }
 
 @Composable
-fun HomeInsightStrip(state: AppUiState) {
+fun HomeInsightStrip(state: AppUiState, onNavigate: (Tab) -> Unit) {
     val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
     val todayEvents = state.events.count { it.date == today }
     val openTasks = state.tasks.count { !it.done }
@@ -202,10 +202,10 @@ fun HomeInsightStrip(state: AppUiState) {
         "J-$days ${it.name}"
     } ?: "Aucun"
     val insights = listOf(
-        "📅 $todayEvents aujourd'hui",
-        "✅ $openTasks a faire",
-        "🛒 $remainingShopping courses",
-        "🎂 $birthdayLabel"
+        Triple("📅 $todayEvents aujourd'hui", Tab.Calendar, Color(0xFFFFF3D6)),
+        Triple("✅ $openTasks a faire", Tab.Tasks, Color(0xFFDCF1FF)),
+        Triple("🛒 $remainingShopping courses", Tab.Shopping, Color(0xFFDDF6E5)),
+        Triple("🎂 $birthdayLabel", Tab.Birthdays, Color(0xFFFFE3EC))
     )
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -214,10 +214,15 @@ fun HomeInsightStrip(state: AppUiState) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.height(116.dp)
     ) {
-        gridItems(insights) { insight ->
-            Surface(color = Color.White, shape = RoundedCornerShape(16.dp), shadowElevation = 2.dp) {
+        gridItems(insights) { (label, tab, tint) ->
+            Surface(
+                color = tint,
+                shape = RoundedCornerShape(16.dp),
+                shadowElevation = 2.dp,
+                modifier = Modifier.clickable { onNavigate(tab) }
+            ) {
                 Box(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
-                    Text(insight, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(label, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

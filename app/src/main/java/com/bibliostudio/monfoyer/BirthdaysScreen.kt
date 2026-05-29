@@ -55,24 +55,41 @@ fun BirthdaysScreen(vm: MonFoyerViewModel) {
     var showAddSheet by remember { mutableStateOf(false) }
     var birthdayToDelete by remember { mutableStateOf<Birthday?>(null) }
     var editingBirthday by remember { mutableStateOf<Birthday?>(null) }
+    var searchOpen by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val q = searchQuery.trim().lowercase(Locale.FRANCE)
+    val displayed = vm.state.birthdays
+        .filter { q.isBlank() || it.name.lowercase(Locale.FRANCE).contains(q) }
+        .sortedBy { it.nextBirthday() }
     ModulePanel(title = "Anniversaires") {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 Spacer(Modifier.weight(1f))
-                RoundIconButton(icon = Icons.Filled.ViewList, tint = Muted, onClick = {})
-                RoundIconButton(icon = Icons.Filled.Search, tint = Muted, onClick = {})
+                RoundIconButton(icon = Icons.Filled.Search, tint = if (searchOpen) DeepGreen else Muted, onClick = {
+                    searchOpen = !searchOpen
+                    if (!searchOpen) searchQuery = ""
+                })
                 Surface(color = DeepGreen, shape = CircleShape, modifier = Modifier.size(54.dp).clickable { showAddSheet = true }) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.Add, contentDescription = "Ajouter", tint = Color.White, modifier = Modifier.size(32.dp))
                     }
                 }
             }
+            if (searchOpen) {
+                Spacer(Modifier.height(12.dp))
+                SoftInput(value = searchQuery, onValueChange = { searchQuery = it }, label = "Rechercher quelqu'un...", leadingIcon = Icons.Filled.Search)
+            }
         }
-        if (vm.state.birthdays.isEmpty()) {
-            item { EmptyState("🎂", "Aucun anniversaire", "Ajoute les dates importantes du foyer.") }
+        if (displayed.isEmpty()) {
+            item {
+                if (q.isNotBlank()) EmptyState("🔍", "Aucun resultat", "Personne ne correspond a \"$searchQuery\".")
+                else EmptyState("🎂", "Aucun anniversaire", "Ajoute les dates importantes du foyer.")
+            }
         }
-        items(vm.state.birthdays.sortedBy { it.nextBirthday() }) { birthday ->
-            BirthdayRow(birthday, onClick = { editingBirthday = birthday }) { birthdayToDelete = birthday }
+        items(displayed, key = { it.id }) { birthday ->
+            Box(Modifier.animateItem()) {
+                BirthdayRow(birthday, onClick = { editingBirthday = birthday }) { birthdayToDelete = birthday }
+            }
         }
     }
     if (showAddSheet) {
