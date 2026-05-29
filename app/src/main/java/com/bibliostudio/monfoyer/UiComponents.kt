@@ -95,42 +95,38 @@ fun NotificationPermissionEffect() {
 @Composable
 fun BrandLogo(modifier: Modifier = Modifier) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Surface(
-            color = DeepGreen,
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.size(46.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Canvas(Modifier.size(28.dp)) {
-                    val roof = Path().apply {
-                        moveTo(0f, size.height * 0.54f)
-                        lineTo(size.width * 0.50f, 0f)
-                        lineTo(size.width, size.height * 0.54f)
-                        close()
-                    }
-                    drawPath(roof, color = Color(0xFFFFD86B))
-                    drawRoundRect(
-                        color = Color.White,
-                        topLeft = Offset(size.width * 0.12f, size.height * 0.52f),
-                        size = androidx.compose.ui.geometry.Size(size.width * 0.76f, size.height * 0.50f),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
-                    )
-                    drawRoundRect(
-                        color = Color(0xFFB2D9CE),
-                        topLeft = Offset(size.width * 0.36f, size.height * 0.68f),
-                        size = androidx.compose.ui.geometry.Size(size.width * 0.28f, size.height * 0.34f),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
-                    )
+        BrandIcon(size = 46.dp)
+        Spacer(Modifier.width(12.dp))
+        Text("Mon Foyer", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Black)
+    }
+}
+
+@Composable
+fun BrandIcon(size: androidx.compose.ui.unit.Dp = 46.dp) {
+    Surface(color = DeepGreen, shape = RoundedCornerShape(size * 0.3f), modifier = Modifier.size(size)) {
+        Box(contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(size * 0.6f)) {
+                val roof = Path().apply {
+                    moveTo(0f, this@Canvas.size.height * 0.54f)
+                    lineTo(this@Canvas.size.width * 0.50f, 0f)
+                    lineTo(this@Canvas.size.width, this@Canvas.size.height * 0.54f)
+                    close()
                 }
+                drawPath(roof, color = Color(0xFFFFD86B))
+                drawRoundRect(
+                    color = Color.White,
+                    topLeft = Offset(this.size.width * 0.12f, this.size.height * 0.52f),
+                    size = androidx.compose.ui.geometry.Size(this.size.width * 0.76f, this.size.height * 0.50f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
+                )
+                drawRoundRect(
+                    color = Color(0xFFB2D9CE),
+                    topLeft = Offset(this.size.width * 0.36f, this.size.height * 0.68f),
+                    size = androidx.compose.ui.geometry.Size(this.size.width * 0.28f, this.size.height * 0.34f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
+                )
             }
         }
-        Spacer(Modifier.width(12.dp))
-        Text(
-            "Mon Foyer",
-            color = Ink,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Black
-        )
     }
 }
 

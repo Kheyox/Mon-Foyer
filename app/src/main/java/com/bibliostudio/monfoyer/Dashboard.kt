@@ -2,6 +2,7 @@ package com.bibliostudio.monfoyer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,10 +112,14 @@ fun Dashboard(vm: MonFoyerViewModel) {
 @Composable
 fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
     Surface(
-        color = Color.White,
+        color = Color.Transparent,
         shape = RoundedCornerShape(20.dp),
         shadowElevation = 3.dp,
-        modifier = Modifier.fillMaxWidth().height(82.dp).clickable(onClick = onClick)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(82.dp)
+            .background(Brush.horizontalGradient(tile.gradients), RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
     ) {
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             Box(

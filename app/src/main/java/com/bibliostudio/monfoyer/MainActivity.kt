@@ -330,63 +330,40 @@ fun AppHeader(
     onSignOut: () -> Unit
 ) {
     val isDark = activeTab == Tab.Requests
-    val iconTint by animateColorAsState(if (isDark) Color.White else DeepGreen, tween(300), label = "icon")
+    val textColor by animateColorAsState(if (isDark) Color.White else Ink, tween(300), label = "text")
+    val mutedColor by animateColorAsState(if (isDark) Color(0xFF9E9E9E) else Muted, tween(300), label = "muted")
     var menuOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            BrandLogo(Modifier.weight(1f))
-            Spacer(Modifier.width(10.dp))
-            if (isOffline) {
-                Surface(color = Color(0xFF8B0000), shape = RoundedCornerShape(50)) {
-                    Text(
-                        text = "🔌 Hors ligne",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = androidx.compose.ui.Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-            }
-            Box {
-                RoundIconButton(icon = Icons.Filled.MoreVert, tint = iconTint, onClick = { menuOpen = true })
-                HomeMenu(
-                    expanded = menuOpen,
-                    onDismiss = { menuOpen = false },
-                    onSelect = {
-                        menuOpen = false
-                        onSelect(it)
-                    },
-                    onCheckUpdate = {
-                        menuOpen = false
-                        onCheckUpdate()
-                    },
-                    onSignOut = {
-                        menuOpen = false
-                        onSignOut()
-                    }
-                )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        BrandIcon(size = 42.dp)
+        Column(Modifier.weight(1f)) {
+            Text(
+                if (activeTab == Tab.Home) "Mon Foyer" else activeTab.label,
+                color = textColor,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black
+            )
+            if (activeTab == Tab.Home) {
+                Text(householdName, color = mutedColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         }
-        Spacer(Modifier.height(16.dp))
-        if (activeTab != Tab.Home) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = Ink, shape = RoundedCornerShape(50), shadowElevation = 2.dp, modifier = Modifier.clickable { onHome() }) {
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(activeTab.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(activeTab.label, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Black)
-                    }
-                }
+        if (isOffline) {
+            Surface(color = Color(0xFF8B0000), shape = RoundedCornerShape(50)) {
+                Text("🔌", fontSize = 14.sp, modifier = androidx.compose.ui.Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             }
-        } else {
-            Surface(color = Paper.copy(alpha = 0.78f), shape = RoundedCornerShape(50), border = BorderStroke(1.dp, CardBorder)) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(Leaf))
-                    Spacer(Modifier.width(8.dp))
-                    Text(householdName, color = Muted, fontSize = 14.sp, fontWeight = FontWeight.Black)
-                }
-            }
+        }
+        Box {
+            RoundIconButton(icon = Icons.Filled.MoreVert, tint = if (isDark) Color.White else DeepGreen, onClick = { menuOpen = true })
+            HomeMenu(
+                expanded = menuOpen,
+                onDismiss = { menuOpen = false },
+                onSelect = { menuOpen = false; onSelect(it) },
+                onCheckUpdate = { menuOpen = false; onCheckUpdate() },
+                onSignOut = { menuOpen = false; onSignOut() }
+            )
         }
     }
 }
