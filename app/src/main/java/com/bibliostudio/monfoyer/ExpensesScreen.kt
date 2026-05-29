@@ -228,7 +228,7 @@ fun BalanceCard(member: Member, balance: Double) {
 }
 
 @Composable
-fun SettlementRow(settlement: Settlement) {
+private fun SettlementRow(settlement: Settlement) {
     Surface(color = Color(0xFFFAFAFA), shape = RoundedCornerShape(AppRadius), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(color = Color(settlement.fromColor), shape = CircleShape, modifier = Modifier.size(34.dp)) {
