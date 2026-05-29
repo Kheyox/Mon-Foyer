@@ -70,7 +70,7 @@ fun MembersScreen(vm: MonFoyerViewModel) {
 
     ModulePanel(title = "Mon foyer") {
         item {
-            Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
+            Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp)) {
                     Text("Parametres du foyer", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink)
                     Spacer(Modifier.height(8.dp))
@@ -188,8 +188,7 @@ fun MemberProfileCard(member: Member, stats: MemberStats, canEdit: Boolean, onCl
     Surface(
         color = Color.White,
         shape = RoundedCornerShape(28.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
-        shadowElevation = if (member.role == "admin") 2.dp else 0.dp,
+        shadowElevation = if (member.role == "admin") 4.dp else 2.dp,
         modifier = Modifier.fillMaxWidth().clickable(enabled = canEdit, onClick = onClick)
     ) {
         Box(Modifier.padding(16.dp)) {
@@ -243,7 +242,7 @@ fun RoleBadge(role: String) {
 
 @Composable
 fun MemberStatChip(emoji: String, value: String, label: String, modifier: Modifier = Modifier) {
-    Surface(color = Cream, shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), modifier = modifier.height(58.dp)) {
+    Surface(color = Cream, shape = RoundedCornerShape(16.dp), shadowElevation = 1.dp, modifier = modifier.height(58.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)) {
             Text("$emoji $value", fontSize = 15.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1)
             Text(label, fontSize = 10.sp, color = Muted, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)

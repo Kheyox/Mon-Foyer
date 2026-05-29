@@ -149,7 +149,7 @@ fun MemberRequestTab(member: Member, selected: Boolean, pendingCount: Int, onCli
     Surface(
         color = if (selected) DeepGreen else Color.White,
         shape = RoundedCornerShape(18.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) DeepGreen else CardBorder),
+        shadowElevation = if (selected) 2.dp else 1.dp,
         modifier = Modifier.fillMaxWidth().height(46.dp).clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -197,7 +197,7 @@ fun MediaRequestCard(
     Surface(
         color = Color.White,
         shape = RoundedCornerShape(AppRadius),
-        border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+        shadowElevation = 3.dp,
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer(scaleX = cardScale, scaleY = cardScale)

@@ -297,7 +297,7 @@ fun TaskCard(task: HouseholdTask, onToggle: () -> Unit, onEdit: () -> Unit, onDe
     Surface(
         color = if (overdue && !task.done) Color(0xFFFFF6F1) else Color.White,
         shape = RoundedCornerShape(AppRadius),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, if (overdue && !task.done) Coral else CardBorder),
+        shadowElevation = 3.dp,
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer(scaleX = cardScale, scaleY = cardScale, alpha = cardAlpha)
@@ -400,8 +400,8 @@ fun AddTaskSheet(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     color = Color.White,
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder),
+                    shape = RoundedCornerShape(14.dp),
+                    shadowElevation = 2.dp,
                     modifier = Modifier.size(66.dp).clickable { showEmojiPicker = true }
                 ) {
                     Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 28.sp) }

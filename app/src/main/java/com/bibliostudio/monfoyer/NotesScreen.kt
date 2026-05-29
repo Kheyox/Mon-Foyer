@@ -39,7 +39,7 @@ fun NotesScreen(vm: MonFoyerViewModel) {
             Surface(
                 color = Color(0xFFEEF6FF),
                 shape = RoundedCornerShape(AppRadius),
-                border = BorderStroke(1.4.dp, CardBorder),
+                shadowElevation = 2.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(14.dp)) {
@@ -85,7 +85,7 @@ fun NotesScreen(vm: MonFoyerViewModel) {
             Surface(
                 color = Color.White,
                 shape = RoundedCornerShape(AppRadius),
-                border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+                shadowElevation = 3.dp,
                 modifier = Modifier.fillMaxWidth().animateItem().clickable { editingNote = note }
             ) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {

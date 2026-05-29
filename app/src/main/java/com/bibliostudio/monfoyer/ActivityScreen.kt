@@ -39,7 +39,7 @@ fun ActivityScreen(vm: MonFoyerViewModel) {
                 Surface(
                     color = Color.White,
                     shape = RoundedCornerShape(AppRadius),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+                    shadowElevation = 3.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -93,6 +93,10 @@ class MonFoyerViewModel : ViewModel() {
         state = state.copy(isOffline = offline)
     }
 
+    fun toggleDarkMode() {
+        state = state.copy(darkMode = !state.darkMode)
+    }
+
     fun updateSharedNote(text: String) {
         val household = state.household ?: return
         state = state.copy(sharedNote = text)

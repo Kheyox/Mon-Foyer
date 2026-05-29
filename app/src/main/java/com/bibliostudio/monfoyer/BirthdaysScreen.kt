@@ -201,7 +201,7 @@ fun BirthdayRow(birthday: Birthday, onClick: () -> Unit = {}, onDelete: () -> Un
     Surface(
         color = Color.White,
         shape = RoundedCornerShape(AppRadius),
-        border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+        shadowElevation = 3.dp,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
