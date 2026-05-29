@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -1390,86 +1392,58 @@ private fun TmdbRequestCard(
         else -> "En attente"
     }
 
+    val accentColor = if (request.kind == "Livre") Color(0xFF32D74B) else CinemaAccent
     Surface(
         color = CinemaCard,
         shape = RoundedCornerShape(16.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
     ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Poster thumbnail or emoji
-                if (request.posterUrl.isNotEmpty()) {
-                    AsyncImage(
-                        model = request.posterUrl,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .width(50.dp)
-                            .height(75.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .width(50.dp)
-                            .height(75.dp)
-                            .background(CinemaCardDark, RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            if (request.kind == "Livre") "📚" else "🎬",
-                            fontSize = 22.sp
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(12.dp))
-
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        request.title,
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        request.requesterName.ifBlank { "Membre" },
-                        color = CinemaTextMuted,
-                        fontSize = 13.sp
-                    )
-                    if (request.year.isNotEmpty()) {
-                        Text(
-                            request.year,
-                            color = CinemaTextMuted,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                // Status badge
-                Surface(
-                    color = statusColor.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp)
+        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+            // Colored left stripe by kind
+            Box(
+                Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(accentColor, RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+            )
+            Column(Modifier.padding(14.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        statusText,
-                        color = statusColor,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
-                    )
+                    // Poster thumbnail or emoji
+                    if (request.posterUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = request.posterUrl,
+                            contentDescription = null,
+                            modifier = Modifier.width(52.dp).height(78.dp).clip(RoundedCornerShape(10.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier.width(52.dp).height(78.dp).background(CinemaCardDark, RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(if (request.kind == "Livre") "📚" else "🎬", fontSize = 24.sp)
+                        }
+                    }
+
+                    Spacer(Modifier.width(14.dp))
+
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(request.title, color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(request.requesterName.ifBlank { "Membre" }, color = CinemaTextMuted, fontSize = 13.sp)
+                        if (request.year.isNotEmpty()) Text(request.year, color = Color(0xFF6E6E73), fontSize = 12.sp)
+                    }
+
+                    Spacer(Modifier.width(10.dp))
+
+                    // Status badge
+                    Surface(color = statusColor.copy(alpha = 0.15f), shape = RoundedCornerShape(10.dp)) {
+                        Text(statusText, color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp))
+                    }
                 }
-            }
 
             // Moderate / delete buttons
             if (canModerate || canDelete) {
@@ -1531,4 +1505,5 @@ private fun TmdbRequestCard(
             }
         }
     }
+}
 }

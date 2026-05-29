@@ -9,8 +9,10 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -263,7 +265,12 @@ fun HomeShell(vm: MonFoyerViewModel) {
     BackHandler(enabled = vm.state.selectedTab != Tab.Home) {
         vm.select(Tab.Home)
     }
-    Box(Modifier.fillMaxSize().background(Cream).systemBarsPadding()) {
+    val isDark = vm.state.selectedTab == Tab.Requests
+    val bgColor by animateColorAsState(
+        targetValue = if (isDark) Color(0xFF0F0F0F) else Cream,
+        animationSpec = tween(300), label = "bg"
+    )
+    Box(Modifier.fillMaxSize().background(bgColor).systemBarsPadding()) {
         Column(Modifier.fillMaxSize()) {
             AppHeader(
                 activeTab = vm.state.selectedTab,
@@ -322,6 +329,8 @@ fun AppHeader(
     onCheckUpdate: () -> Unit,
     onSignOut: () -> Unit
 ) {
+    val isDark = activeTab == Tab.Requests
+    val iconTint by animateColorAsState(if (isDark) Color.White else DeepGreen, tween(300), label = "icon")
     var menuOpen by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -340,7 +349,7 @@ fun AppHeader(
                 Spacer(Modifier.width(8.dp))
             }
             Box {
-                RoundIconButton(icon = Icons.Filled.MoreVert, tint = DeepGreen, onClick = { menuOpen = true })
+                RoundIconButton(icon = Icons.Filled.MoreVert, tint = iconTint, onClick = { menuOpen = true })
                 HomeMenu(
                     expanded = menuOpen,
                     onDismiss = { menuOpen = false },
