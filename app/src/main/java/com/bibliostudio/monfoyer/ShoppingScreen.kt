@@ -108,7 +108,7 @@ fun ShoppingScreen(vm: MonFoyerViewModel) {
             Surface(
                 color = Color.White,
                 shape = RoundedCornerShape(AppRadius),
-                border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+                shadowElevation = 3.dp,
                 modifier = Modifier.fillMaxWidth().animateItem().clickable { editingItem = item }
             ) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {

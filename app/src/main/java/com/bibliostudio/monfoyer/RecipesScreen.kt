@@ -114,7 +114,7 @@ fun RecipeCard(recipe: Recipe, onClick: () -> Unit, onDelete: () -> Unit) {
     Surface(
         color = Color.White,
         shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+        shadowElevation = 3.dp,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {

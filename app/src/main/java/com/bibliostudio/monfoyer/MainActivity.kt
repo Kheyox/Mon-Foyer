@@ -20,10 +20,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,13 +28,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -45,13 +45,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,25 +61,26 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
-
-private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/Kheyox/Mon-Foyer/main/update.json"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -106,7 +105,7 @@ fun MonFoyerApp(vm: MonFoyerViewModel = viewModel()) {
         onSurface = Ink
     )
     val view = LocalView.current
-    androidx.compose.runtime.SideEffect {
+    SideEffect {
         (view.context as? ComponentActivity)?.window?.apply {
             statusBarColor = android.graphics.Color.parseColor("#103F37")
             WindowCompat.getInsetsController(this, view).isAppearanceLightStatusBars = false
@@ -127,32 +126,15 @@ fun MonFoyerApp(vm: MonFoyerViewModel = viewModel()) {
 @Composable
 fun SplashScreen() {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DeepGreen),
+        modifier = Modifier.fillMaxSize().background(DeepGreen),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "Mon Foyer",
-                color = Color.White,
-                fontSize = 42.sp,
-                fontWeight = FontWeight.Black
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text("Mon Foyer", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(12.dp))
-            Text(
-                text = "Chargement…",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 16.sp
-            )
+            Text("Chargement…", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
             Spacer(Modifier.height(24.dp))
-            CircularProgressIndicator(
-                color = Color.White,
-                modifier = Modifier.size(40.dp)
-            )
+            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(40.dp))
         }
     }
 }
@@ -211,7 +193,12 @@ fun HouseholdGate(vm: MonFoyerViewModel) {
 
 @Composable
 fun OnboardingStep(number: String, title: String, body: String) {
-    Surface(color = Color.White, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, CardBorder), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(20.dp),
+        shadowElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+    ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(color = Mint, shape = CircleShape, modifier = Modifier.size(42.dp)) {
                 Box(contentAlignment = Alignment.Center) {
@@ -227,6 +214,12 @@ fun OnboardingStep(number: String, title: String, body: String) {
     }
 }
 
+private val PRIMARY_NAV_TABS = listOf(Tab.Home, Tab.Tasks, Tab.Shopping, Tab.Calendar)
+private val EXTRA_TABS = listOf(
+    Tab.Requests, Tab.Activity, Tab.Birthdays, Tab.Notes,
+    Tab.Members, Tab.Budget, Tab.Expenses, Tab.Recipes, Tab.Contacts
+)
+
 @Composable
 fun HomeShell(vm: MonFoyerViewModel) {
     val context = LocalContext.current as ComponentActivity
@@ -238,25 +231,18 @@ fun HomeShell(vm: MonFoyerViewModel) {
     DisposableEffect(Unit) {
         val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
         val networkCallback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                vm.setOffline(false)
-            }
-            override fun onLost(network: Network) {
-                vm.setOffline(true)
-            }
+            override fun onAvailable(network: Network) { vm.setOffline(false) }
+            override fun onLost(network: Network) { vm.setOffline(true) }
         }
         val request = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
         connectivityManager.registerNetworkCallback(request, networkCallback)
-        // Check initial state
         val activeNetwork = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
         val isConnected = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
         vm.setOffline(!isConnected)
-        onDispose {
-            connectivityManager.unregisterNetworkCallback(networkCallback)
-        }
+        onDispose { connectivityManager.unregisterNetworkCallback(networkCallback) }
     }
     LaunchedEffect(vm.state.events, vm.state.tasks, vm.state.birthdays) {
         ReminderScheduler.refresh(context, vm.state.events, vm.state.tasks, vm.state.birthdays)
@@ -265,64 +251,191 @@ fun HomeShell(vm: MonFoyerViewModel) {
     BackHandler(enabled = vm.state.selectedTab != Tab.Home) {
         vm.select(Tab.Home)
     }
-    val isDark = vm.state.selectedTab == Tab.Requests
+    val isDark = vm.state.darkMode || vm.state.selectedTab == Tab.Requests
     val bgColor by animateColorAsState(
         targetValue = if (isDark) Color(0xFF0F0F0F) else Cream,
         animationSpec = tween(300), label = "bg"
     )
-    Box(Modifier.fillMaxSize().background(bgColor).systemBarsPadding()) {
-        Column(Modifier.fillMaxSize()) {
-            AppHeader(
-                activeTab = vm.state.selectedTab,
-                householdName = vm.state.household?.name ?: "Mon Foyer",
-                isOffline = vm.state.isOffline,
-                onHome = { vm.select(Tab.Home) },
-                onSelect = { vm.select(it) },
-                onCheckUpdate = { vm.checkForUpdate(context) },
-                onSignOut = { vm.signOut(context) }
-            )
-            vm.state.error?.let { ErrorText(it, Modifier.padding(horizontal = 24.dp)) }
-            AnimatedContent(
-                targetState = vm.state.selectedTab,
-                transitionSpec = {
-                    val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
-                    slideInHorizontally(
-                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                        initialOffsetX = { fullWidth -> fullWidth * direction }
-                    ) togetherWith slideOutHorizontally(
-                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                        targetOffsetX = { fullWidth -> -fullWidth * direction }
+    var moreNavOpen by remember { mutableStateOf(false) }
+    CompositionLocalProvider(LocalAppDarkMode provides isDark) {
+        Box(Modifier.fillMaxSize().background(bgColor).systemBarsPadding()) {
+            Column(Modifier.fillMaxSize()) {
+                AppHeader(
+                    activeTab = vm.state.selectedTab,
+                    householdName = vm.state.household?.name ?: "Mon Foyer",
+                    isOffline = vm.state.isOffline,
+                    isDark = isDark,
+                    darkMode = vm.state.darkMode,
+                    onToggleDark = { vm.toggleDarkMode() },
+                    onCheckUpdate = { vm.checkForUpdate(context) },
+                    onSignOut = { vm.signOut(context) }
+                )
+                vm.state.error?.let { ErrorText(it, Modifier.padding(horizontal = 24.dp)) }
+                Box(Modifier.weight(1f)) {
+                    AnimatedContent(
+                        targetState = vm.state.selectedTab,
+                        transitionSpec = {
+                            val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                            slideInHorizontally(
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                initialOffsetX = { fullWidth -> fullWidth * direction }
+                            ) togetherWith slideOutHorizontally(
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                targetOffsetX = { fullWidth -> -fullWidth * direction }
+                            )
+                        },
+                        label = "tab-slide"
+                    ) { tab ->
+                        when (tab) {
+                            Tab.Home -> Dashboard(vm)
+                            Tab.Shopping -> ShoppingScreen(vm)
+                            Tab.Tasks -> TasksScreen(vm)
+                            Tab.Calendar -> AgendaScreen(vm)
+                            Tab.Requests -> TmdbScreen(vm)
+                            Tab.Activity -> ActivityScreen(vm)
+                            Tab.Birthdays -> BirthdaysScreen(vm)
+                            Tab.Notes -> NotesScreen(vm)
+                            Tab.Members -> MembersScreen(vm)
+                            Tab.Budget -> BudgetScreen(vm)
+                            Tab.Expenses -> ExpensesScreen(vm)
+                            Tab.Recipes -> RecipesScreen(vm)
+                            Tab.Contacts -> ContactsScreen(vm)
+                        }
+                    }
+                    FoyerSnackbar(
+                        event = vm.snackbar,
+                        modifier = Modifier.align(Alignment.BottomCenter)
                     )
-                },
-                label = "tab-slide"
-            ) { tab ->
-                when (tab) {
-                    Tab.Home -> Dashboard(vm)
-                    Tab.Shopping -> ShoppingScreen(vm)
-                    Tab.Tasks -> TasksScreen(vm)
-                    Tab.Calendar -> AgendaScreen(vm)
-                    Tab.Requests -> TmdbScreen(vm)
-                    Tab.Activity -> ActivityScreen(vm)
-                    Tab.Birthdays -> BirthdaysScreen(vm)
-                    Tab.Notes -> NotesScreen(vm)
-                    Tab.Members -> MembersScreen(vm)
-                    Tab.Budget -> BudgetScreen(vm)
-                    Tab.Expenses -> ExpensesScreen(vm)
-                    Tab.Recipes -> RecipesScreen(vm)
-                    Tab.Contacts -> ContactsScreen(vm)
                 }
+                AppBottomNav(
+                    selected = vm.state.selectedTab,
+                    isDark = isDark,
+                    darkMode = vm.state.darkMode,
+                    moreOpen = moreNavOpen,
+                    onMoreOpenChange = { moreNavOpen = it },
+                    onSelect = { vm.select(it) },
+                    onCheckUpdate = { vm.checkForUpdate(context) },
+                    onSignOut = { vm.signOut(context) },
+                    onToggleDark = { vm.toggleDarkMode() }
+                )
+            }
+            vm.state.updateInfo?.let { update ->
+                UpdateAvailableDialog(update = update, onDismiss = { vm.clearUpdateInfo() })
             }
         }
-        FloatingHomeButton(visible = vm.state.selectedTab != Tab.Home, onClick = { vm.select(Tab.Home) })
-        FoyerSnackbar(
-            event = vm.snackbar,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-        vm.state.updateInfo?.let { update ->
-            UpdateAvailableDialog(
-                update = update,
-                onDismiss = { vm.clearUpdateInfo() }
-            )
+    }
+}
+
+@Composable
+fun AppBottomNav(
+    selected: Tab,
+    isDark: Boolean,
+    darkMode: Boolean,
+    moreOpen: Boolean,
+    onMoreOpenChange: (Boolean) -> Unit,
+    onSelect: (Tab) -> Unit,
+    onCheckUpdate: () -> Unit,
+    onSignOut: () -> Unit,
+    onToggleDark: () -> Unit
+) {
+    val navBgColor by animateColorAsState(
+        targetValue = if (isDark) Color(0xFF1C1C1E) else Color.White,
+        animationSpec = tween(300), label = "nav-bg"
+    )
+    Surface(color = navBgColor, shadowElevation = 12.dp, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().height(64.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PRIMARY_NAV_TABS.forEach { tab ->
+                key(tab) {
+                    val isSelected = selected == tab
+                    val itemTint by animateColorAsState(
+                        targetValue = when {
+                            isSelected -> DeepGreen
+                            isDark -> Color(0xFF9E9E9E)
+                            else -> Muted
+                        },
+                        animationSpec = tween(200), label = "nav-${tab.name}"
+                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable { onSelect(tab) }
+                            .padding(vertical = 10.dp)
+                    ) {
+                        Icon(tab.icon, contentDescription = tab.label, tint = itemTint, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            tab.label,
+                            fontSize = 10.sp,
+                            color = itemTint,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            // "Plus" — dropdown pour tous les autres onglets
+            Box(
+                modifier = Modifier.weight(1f).fillMaxHeight().wrapContentSize(Alignment.BottomCenter),
+                contentAlignment = Alignment.Center
+            ) {
+                val isExtraSelected = EXTRA_TABS.contains(selected)
+                val plusTint by animateColorAsState(
+                    targetValue = if (isExtraSelected) DeepGreen else if (isDark) Color(0xFF9E9E9E) else Muted,
+                    animationSpec = tween(200), label = "nav-plus"
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { onMoreOpenChange(true) }
+                        .padding(vertical = 10.dp)
+                ) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "Plus", tint = plusTint, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        "Plus",
+                        fontSize = 10.sp,
+                        color = plusTint,
+                        fontWeight = if (isExtraSelected) FontWeight.Black else FontWeight.SemiBold,
+                        maxLines = 1
+                    )
+                }
+                DropdownMenu(
+                    expanded = moreOpen,
+                    onDismissRequest = { onMoreOpenChange(false) },
+                    containerColor = Color.White
+                ) {
+                    EXTRA_TABS.forEach { tab ->
+                        DropdownMenuItem(
+                            text = { Text(tab.label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                            leadingIcon = { Icon(tab.icon, contentDescription = null, tint = DeepGreen) },
+                            onClick = { onMoreOpenChange(false); onSelect(tab) }
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(if (darkMode) "Mode clair" else "Mode sombre", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                        leadingIcon = { Text(if (darkMode) "☀️" else "🌙", fontSize = 18.sp) },
+                        onClick = { onMoreOpenChange(false); onToggleDark() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Mise a jour", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                        leadingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = DeepGreen) },
+                        onClick = { onMoreOpenChange(false); onCheckUpdate() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Deconnexion", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                        leadingIcon = { Icon(Icons.Filled.Logout, contentDescription = null, tint = Muted) },
+                        onClick = { onMoreOpenChange(false); onSignOut() }
+                    )
+                }
+            }
         }
     }
 }
@@ -332,12 +445,12 @@ fun AppHeader(
     activeTab: Tab,
     householdName: String,
     isOffline: Boolean = false,
-    onHome: () -> Unit,
-    onSelect: (Tab) -> Unit,
+    isDark: Boolean = false,
+    darkMode: Boolean = false,
+    onToggleDark: () -> Unit = {},
     onCheckUpdate: () -> Unit,
     onSignOut: () -> Unit
 ) {
-    val isDark = activeTab == Tab.Requests
     val textColor by animateColorAsState(if (isDark) Color.White else Ink, tween(300), label = "text")
     val mutedColor by animateColorAsState(if (isDark) Color(0xFF9E9E9E) else Muted, tween(300), label = "muted")
     var menuOpen by remember { mutableStateOf(false) }
@@ -360,48 +473,29 @@ fun AppHeader(
         }
         if (isOffline) {
             Surface(color = Color(0xFF8B0000), shape = RoundedCornerShape(50)) {
-                Text("🔌", fontSize = 14.sp, modifier = androidx.compose.ui.Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                Text("🔌", fontSize = 14.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             }
         }
         Box {
             RoundIconButton(icon = Icons.Filled.MoreVert, tint = if (isDark) Color.White else DeepGreen, onClick = { menuOpen = true })
-            HomeMenu(
-                expanded = menuOpen,
-                onDismiss = { menuOpen = false },
-                onSelect = { menuOpen = false; onSelect(it) },
-                onCheckUpdate = { menuOpen = false; onCheckUpdate() },
-                onSignOut = { menuOpen = false; onSignOut() }
-            )
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, containerColor = Color.White) {
+                DropdownMenuItem(
+                    text = { Text(if (darkMode) "Mode clair" else "Mode sombre", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                    leadingIcon = { Text(if (darkMode) "☀️" else "🌙", fontSize = 18.sp) },
+                    onClick = { menuOpen = false; onToggleDark() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Mise a jour", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                    leadingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = DeepGreen) },
+                    onClick = { menuOpen = false; onCheckUpdate() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Deconnexion", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                    leadingIcon = { Icon(Icons.Filled.Logout, contentDescription = null, tint = Muted) },
+                    onClick = { menuOpen = false; onSignOut() }
+                )
+            }
         }
-    }
-}
-
-@Composable
-fun HomeMenu(
-    expanded: Boolean,
-    onDismiss: () -> Unit,
-    onSelect: (Tab) -> Unit,
-    onCheckUpdate: () -> Unit,
-    onSignOut: () -> Unit
-) {
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = Color.White) {
-        listOf(Tab.Home, Tab.Calendar, Tab.Tasks, Tab.Shopping, Tab.Requests, Tab.Activity, Tab.Birthdays, Tab.Notes, Tab.Members, Tab.Budget, Tab.Expenses, Tab.Recipes, Tab.Contacts).forEach { tab ->
-            DropdownMenuItem(
-                text = { Text(tab.label, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
-                leadingIcon = { Icon(tab.icon, contentDescription = null, tint = DeepGreen) },
-                onClick = { onSelect(tab) }
-            )
-        }
-        DropdownMenuItem(
-            text = { Text("Mise a jour", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
-            leadingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = DeepGreen) },
-            onClick = onCheckUpdate
-        )
-        DropdownMenuItem(
-            text = { Text("Deconnexion", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
-            leadingIcon = { Icon(Icons.Filled.Logout, contentDescription = null, tint = Muted) },
-            onClick = onSignOut
-        )
     }
 }
 

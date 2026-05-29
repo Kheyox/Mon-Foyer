@@ -113,7 +113,7 @@ fun ContactsScreen(vm: MonFoyerViewModel) {
 @Composable
 fun ContactCard(contact: FoyerContact, onEdit: () -> Unit, onDelete: () -> Unit) {
     val context = LocalContext.current
-    Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), shadowElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(color = DeepGreen.copy(alpha = 0.10f), shape = CircleShape, modifier = Modifier.size(52.dp)) {
                 Box(contentAlignment = Alignment.Center) { Text(contact.emoji.ifBlank { "👤" }, fontSize = 26.sp) }

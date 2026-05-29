@@ -168,7 +168,7 @@ fun ExpensesScreen(vm: MonFoyerViewModel) {
 fun ExpenseCard(expense: Expense, members: List<Member>, onDelete: () -> Unit) {
     val payer = members.find { it.id == expense.payerId }
     val payerColor = payer?.let { Color(it.color) } ?: DeepGreen
-    Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), shadowElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(color = payerColor.copy(alpha = 0.13f), shape = CircleShape, modifier = Modifier.size(50.dp)) {
                 Box(contentAlignment = Alignment.Center) {
@@ -229,7 +229,7 @@ fun BalanceCard(member: Member, balance: Double) {
 
 @Composable
 private fun SettlementRow(settlement: Settlement) {
-    Surface(color = Color(0xFFFAFAFA), shape = RoundedCornerShape(AppRadius), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFFFAFAFA), shape = RoundedCornerShape(AppRadius), shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(color = Color(settlement.fromColor), shape = CircleShape, modifier = Modifier.size(34.dp)) {
                 Box(contentAlignment = Alignment.Center) { Text(settlement.fromName.memberInitial(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black) }

@@ -190,7 +190,7 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
             Surface(
                 color = Color.White,
                 shape = RoundedCornerShape(AppRadius),
-                border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+                shadowElevation = 3.dp,
                 modifier = Modifier.fillMaxWidth().animateItem().clickable { editingEvent = event }
             ) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -531,7 +531,7 @@ fun AddEventSheet(
 
 @Composable
 fun ParticipantsField(members: List<Member>, selectedIds: Set<String>, onChange: (Set<String>) -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color.White, shape = RoundedCornerShape(AppRadius), shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
             if (members.isEmpty()) {
                 Text("Tout le foyer", color = Muted, fontSize = 18.sp)
@@ -553,7 +553,7 @@ fun ParticipantsField(members: List<Member>, selectedIds: Set<String>, onChange:
 
 @Composable
 fun EventTypeField(type: EventType, onClick: () -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(FieldRadius), border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder), modifier = Modifier.fillMaxWidth().height(66.dp).clickable(onClick = onClick)) {
+    Surface(color = Color.White, shape = RoundedCornerShape(24.dp), shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth().height(66.dp).clickable(onClick = onClick)) {
         Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(type.icon, fontSize = 25.sp)
             Spacer(Modifier.width(12.dp))
@@ -565,7 +565,7 @@ fun EventTypeField(type: EventType, onClick: () -> Unit) {
 
 @Composable
 fun RecurrenceField(value: String, onClick: () -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(FieldRadius), border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Surface(color = Color.White, shape = RoundedCornerShape(24.dp), shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Repeat, contentDescription = null, tint = Muted)
             Spacer(Modifier.width(12.dp))

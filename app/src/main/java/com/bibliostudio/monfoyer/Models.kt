@@ -210,7 +210,8 @@ data class AppUiState(
     val recipes: List<Recipe> = emptyList(),
     val contacts: List<FoyerContact> = emptyList(),
     // Ids masques optimistiquement pendant la fenetre d'annulation (suppression differee).
-    val hiddenIds: Set<String> = emptySet()
+    val hiddenIds: Set<String> = emptySet(),
+    val darkMode: Boolean = false
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {

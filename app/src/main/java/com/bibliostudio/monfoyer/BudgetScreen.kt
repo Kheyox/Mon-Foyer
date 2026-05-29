@@ -239,7 +239,7 @@ fun BudgetBillRow(bill: Bill, onToggle: () -> Unit, onEdit: () -> Unit, onDelete
     Surface(
         color = if (bill.paid) Color(0xFFF2FAF5) else Color.White,
         shape = RoundedCornerShape(AppRadius),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, if (bill.paid) Color(0xFFCFE8D8) else CardBorder),
+        shadowElevation = 3.dp,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -283,7 +283,7 @@ fun BudgetQuickAmount(value: String, onClick: () -> Unit) {
     Surface(
         color = Color.White,
         shape = RoundedCornerShape(50),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+        shadowElevation = 1.dp,
         modifier = Modifier.clickable(onClick = onClick)
     ) {
         Text("$value EUR", color = DeepGreen, fontSize = 14.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))

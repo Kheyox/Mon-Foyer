@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -148,9 +150,22 @@ fun FlowerMark() {
 
 @Composable
 fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
+    val isDark = LocalAppDarkMode.current
     val mood = moduleMood(title)
+    val panelBg by animateColorAsState(
+        targetValue = if (isDark) Color(0xFF1A1A1A) else Color(0xFFFBFAF8),
+        animationSpec = tween(300), label = "panel-bg"
+    )
+    val titleColor by animateColorAsState(
+        targetValue = if (isDark) Color(0xFFECECEC) else Ink,
+        animationSpec = tween(300), label = "panel-title"
+    )
+    val subtitleColor by animateColorAsState(
+        targetValue = if (isDark) Color(0xFFAAAAAA) else Muted,
+        animationSpec = tween(300), label = "panel-sub"
+    )
     Surface(
-        color = Color(0xFFFBFAF8),
+        color = panelBg,
         shape = RoundedCornerShape(topStart = PanelRadius, topEnd = PanelRadius),
         modifier = Modifier.fillMaxSize()
     ) {
@@ -167,14 +182,14 @@ fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(title, fontSize = 30.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(mood.third, fontSize = 13.5.sp, lineHeight = 16.sp, color = Muted, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(title, fontSize = 30.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(mood.third, fontSize = 13.5.sp, lineHeight = 16.sp, color = subtitleColor, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Spacer(Modifier.height(18.dp))
             }
             content()
-            item { Spacer(Modifier.height(92.dp)) }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
@@ -258,7 +273,7 @@ fun SoftInput(
         },
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         minLines = minLines,
-        shape = RoundedCornerShape(FieldRadius),
+        shape = RoundedCornerShape(24.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = DeepGreen,
             unfocusedBorderColor = CardBorder,
@@ -274,13 +289,13 @@ fun PrimaryButton(text: String, icon: ImageVector, enabled: Boolean = true, onCl
     Button(
         onClick = onClick,
         enabled = enabled,
-        shape = RoundedCornerShape(FieldRadius),
+        shape = RoundedCornerShape(24.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = DeepGreen,
             disabledContainerColor = Color(0xFFE1E1E1),
             disabledContentColor = Muted
         ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 0.dp),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 1.dp),
         modifier = Modifier.fillMaxWidth().height(64.dp)
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(25.dp))
@@ -309,7 +324,7 @@ fun ListRow(content: @Composable RowScope.() -> Unit) {
     Surface(
         color = Color.White,
         shape = RoundedCornerShape(AppRadius),
-        border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
+        shadowElevation = 3.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, content = content)
@@ -459,7 +474,7 @@ fun TaskFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
             fontWeight = FontWeight.Black,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp)
         )
     }
 }
@@ -520,8 +535,8 @@ fun DateChip(date: LocalDate) {
 fun CompactField(text: String, icon: ImageVector, onClick: () -> Unit) {
     Surface(
         color = Color.White,
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder),
+        shape = RoundedCornerShape(18.dp),
+        shadowElevation = 2.dp,
         modifier = Modifier.fillMaxWidth().height(66.dp).clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -533,7 +548,7 @@ fun CompactField(text: String, icon: ImageVector, onClick: () -> Unit) {
 
 @Composable
 fun CompactTextField(text: String, tint: Color = Muted, onClick: () -> Unit) {
-    Surface(color = Color.White, shape = RoundedCornerShape(FieldRadius), border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorder), modifier = Modifier.fillMaxWidth().height(64.dp).clickable(onClick = onClick)) {
+    Surface(color = Color.White, shape = RoundedCornerShape(24.dp), shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth().height(64.dp).clickable(onClick = onClick)) {
         Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(text, color = tint, fontSize = 19.sp, modifier = Modifier.weight(1f))
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Muted)
@@ -551,8 +566,8 @@ fun FieldLabel(text: String) {
 fun DateField(date: LocalDate, onClick: () -> Unit) {
     Surface(
         color = Color.White,
-        shape = RoundedCornerShape(FieldRadius),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFD9D9D9)),
+        shape = RoundedCornerShape(24.dp),
+        shadowElevation = 2.dp,
         modifier = Modifier.fillMaxWidth().height(72.dp).clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -654,7 +669,7 @@ fun FoyerSnackbar(event: SnackbarEvent?, modifier: Modifier = Modifier) {
             color = Color(0xF21C1C1E),
             shape = RoundedCornerShape(16.dp),
             shadowElevation = 10.dp,
-            modifier = Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 86.dp)
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
         ) {
             Row(
                 modifier = Modifier.padding(start = 18.dp, end = 8.dp).height(52.dp),

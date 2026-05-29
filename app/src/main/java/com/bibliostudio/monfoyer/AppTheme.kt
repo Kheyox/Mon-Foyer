@@ -1,6 +1,7 @@
 package com.bibliostudio.monfoyer
 
 import androidx.compose.material3.Typography
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -24,6 +25,9 @@ internal val Ink = Color(0xFF17201D)
 internal val Muted = Color(0xFF6B6359) // assombri pour le contraste (WCAG AA sur fond Cream)
 internal val Paper = Color(0xFFFFFFFB)
 internal val Clay = Color(0xFFC96D52)
+
+// Composition local for dark mode — propagated by HomeShell via CompositionLocalProvider
+internal val LocalAppDarkMode = compositionLocalOf { false }
 
 internal val AppRadius = 22.dp
 internal val PanelRadius = 34.dp
