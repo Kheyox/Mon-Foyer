@@ -139,16 +139,23 @@ fun requestStatusLabel(status: String): String = when (status) {
 }
 
 fun exportEventToCalendar(context: Context, event: Event) {
+    // I3 : la date Firestore peut etre vide/corrompue -> parse protege.
+    val millis = runCatching {
+        LocalDateTime.parse("${event.date}T${event.time.ifBlank { "00:00" }}:00")
+            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }.getOrElse {
+        runCatching {
+            LocalDate.parse(event.date).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }.getOrNull()
+    } ?: return
     val intent = Intent(Intent.ACTION_INSERT).apply {
         data = CalendarContract.Events.CONTENT_URI
         putExtra(CalendarContract.Events.TITLE, event.title)
         putExtra(CalendarContract.Events.DESCRIPTION, event.description)
         putExtra(CalendarContract.Events.EVENT_LOCATION, event.location)
-        val ldt = LocalDateTime.parse("${event.date}T${event.time.ifBlank { "00:00" }}:00")
-        val millis = ldt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, millis)
         putExtra(CalendarContract.EXTRA_EVENT_END_TIME, millis + 3600_000)
         putExtra(CalendarContract.Events.ALL_DAY, event.allDay)
     }
-    context.startActivity(intent)
+    runCatching { context.startActivity(intent) }
 }

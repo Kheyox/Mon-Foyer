@@ -107,7 +107,7 @@ fun ExpensesScreen(vm: MonFoyerViewModel) {
             if (expenses.isEmpty()) {
                 item { EmptyState("⚖️", "Aucune depense", "Ajoute les achats du foyer pour partager les frais equitablement.") }
             } else {
-                items(expenses) { expense ->
+                items(expenses, key = { it.id }) { expense ->
                     ExpenseCard(expense = expense, members = members, onDelete = { toDelete = expense })
                 }
             }
@@ -307,8 +307,8 @@ fun AddExpenseSheet(
         Spacer(Modifier.height(22.dp))
         val payerName = members.find { it.id == payerId }?.name ?: ""
         val splitWith = if (splitAll) emptyList() else selectedIds.toList()
-        PrimaryButton("Ajouter", Icons.Filled.Check) {
-            if (canAdd) onAdd(label, amount, payerId, payerName, splitWith, category)
+        PrimaryButton("Ajouter", Icons.Filled.Check, enabled = canAdd) {
+            onAdd(label, amount, payerId, payerName, splitWith, category)
         }
     }
 }

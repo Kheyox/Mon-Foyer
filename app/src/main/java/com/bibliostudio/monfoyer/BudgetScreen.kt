@@ -50,6 +50,7 @@ fun BudgetScreen(vm: MonFoyerViewModel) {
     var editingBill by remember { mutableStateOf<Bill?>(null) }
     var confirmDeleteBill by remember { mutableStateOf<Bill?>(null) }
     var filter by remember { mutableStateOf("A payer") }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val total = vm.state.bills.sumOf { it.amount }
     val paid = vm.state.bills.filter { it.paid }.sumOf { it.amount }
     val unpaidBills = vm.state.bills.filterNot { it.paid }
@@ -130,10 +131,13 @@ fun BudgetScreen(vm: MonFoyerViewModel) {
                 )
             }
         }
-        items(filteredBills) { bill ->
+        items(filteredBills, key = { it.id }) { bill ->
             BudgetBillRow(
                 bill = bill,
-                onToggle = { vm.toggleBill(bill) },
+                onToggle = {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                    vm.toggleBill(bill)
+                },
                 onEdit = { editingBill = bill },
                 onDelete = { confirmDeleteBill = bill }
             )

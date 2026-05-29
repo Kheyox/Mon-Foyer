@@ -98,10 +98,14 @@ fun TasksScreen(vm: MonFoyerViewModel) {
     var memberFilter by remember { mutableStateOf("") }
     var sortBy by remember { mutableStateOf("date") } // "date", "priority"
     var confettiBurst by remember { mutableStateOf(0) }
+    var searchOpen by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
     val thirtyDaysAgo = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
+    val searchLower = searchQuery.trim().lowercase()
     val historyTasks = vm.state.tasks.filter { it.done && it.completedAt > thirtyDaysAgo }
     val filteredTasks = vm.state.tasks
+        .filterNot { it.id in vm.state.hiddenIds }
         .filter { task ->
             when (statusFilter) {
                 "todo" -> !task.done
@@ -111,6 +115,7 @@ fun TasksScreen(vm: MonFoyerViewModel) {
             }
         }
         .filter { task -> memberFilter.isBlank() || task.assigneeId == memberFilter }
+        .filter { task -> searchLower.isBlank() || task.title.lowercase().contains(searchLower) || task.assigneeName.lowercase().contains(searchLower) }
         .let { list ->
             if (sortBy == "priority") {
                 list.sortedWith(compareBy<HouseholdTask> { it.done }.thenBy { priorityOrder(it.priority) }.thenBy { it.dueDate.ifBlank { "9999-12-31" } })
@@ -123,13 +128,20 @@ fun TasksScreen(vm: MonFoyerViewModel) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Spacer(Modifier.weight(1f))
-                RoundIconButton(icon = Icons.Filled.Search, tint = Muted, onClick = {})
+                RoundIconButton(icon = Icons.Filled.Search, tint = if (searchOpen) DeepGreen else Muted, onClick = {
+                    searchOpen = !searchOpen
+                    if (!searchOpen) searchQuery = ""
+                })
                 Spacer(Modifier.width(10.dp))
                 Surface(color = DeepGreen, shape = CircleShape, modifier = Modifier.size(54.dp).clickable { showAddSheet = true }) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.Add, contentDescription = "Ajouter", tint = Color.White, modifier = Modifier.size(32.dp))
                     }
                 }
+            }
+            if (searchOpen) {
+                Spacer(Modifier.height(12.dp))
+                SoftInput(value = searchQuery, onValueChange = { searchQuery = it }, label = "Rechercher une tache...", leadingIcon = Icons.Filled.Search)
             }
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -194,15 +206,20 @@ fun TasksScreen(vm: MonFoyerViewModel) {
             }
         } else {
             if (filteredTasks.isEmpty()) {
-                item { EmptyState("✅", "Rien a faire ici", "Les taches apparaitront selon ton filtre.") }
+                val (emoji, title, body) = if (searchLower.isNotBlank())
+                    Triple("🔍", "Aucun resultat", "Aucune tache ne correspond a \"$searchQuery\".")
+                else Triple("✅", "Rien a faire ici", "Les taches apparaitront selon ton filtre.")
+                item { EmptyState(emoji, title, body) }
             }
-            items(filteredTasks) { task ->
-                TaskCard(
-                    task = task,
-                    onToggle = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); if (!task.done) confettiBurst++; vm.toggleTask(task) },
-                    onEdit = { editingTask = task },
-                    onDelete = { taskToDelete = task }
-                )
+            items(filteredTasks, key = { it.id }) { task ->
+                Box(Modifier.animateItem()) {
+                    TaskCard(
+                        task = task,
+                        onToggle = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); if (!task.done) confettiBurst++; vm.toggleTask(task) },
+                        onEdit = { editingTask = task },
+                        onDelete = { taskToDelete = task }
+                    )
+                }
             }
         }
     }

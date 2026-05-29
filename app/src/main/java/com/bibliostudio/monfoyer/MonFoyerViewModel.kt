@@ -29,7 +29,6 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.URL
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.absoluteValue
@@ -47,6 +46,44 @@ class MonFoyerViewModel : ViewModel() {
     private var tmdbSearchJob: Job? = null
     private var booksSearchJob: Job? = null
     private val appStartTime = System.currentTimeMillis()
+    private var eventsPurged = false
+
+    // --- Systeme de Snackbar (feedback + annulation) ---
+    var snackbar by mutableStateOf<SnackbarEvent?>(null)
+        private set
+    private var snackbarCounter = 0L
+    private val pendingDeletes = mutableMapOf<String, Job>()
+
+    fun showSnackbar(message: String, actionLabel: String? = null, action: (() -> Unit)? = null) {
+        snackbarCounter += 1
+        snackbar = SnackbarEvent(snackbarCounter, message, actionLabel, action)
+    }
+
+    /**
+     * Suppression avec annulation : l'item disparait immediatement (masquage optimiste),
+     * la vraie suppression Firestore n'a lieu qu'apres la fenetre d'annulation.
+     */
+    fun deleteWithUndo(collection: String, id: String, label: String) {
+        val household = state.household ?: return
+        state = state.copy(hiddenIds = state.hiddenIds + id)
+        pendingDeletes.remove(id)?.cancel()
+        val job = viewModelScope.launch {
+            delay(4500)
+            db.collection("households").document(household.id).collection(collection).document(id)
+                .delete()
+                .addOnSuccessListener { state = state.copy(hiddenIds = state.hiddenIds - id) }
+                .addOnFailureListener {
+                    state = state.copy(hiddenIds = state.hiddenIds - id)
+                    setError(it.message ?: "Suppression impossible.")
+                }
+            pendingDeletes.remove(id)
+        }
+        pendingDeletes[id] = job
+        showSnackbar("$label supprime", "Annuler") {
+            pendingDeletes.remove(id)?.cancel()
+            state = state.copy(hiddenIds = state.hiddenIds - id)
+        }
+    }
 
     fun setAppContext(context: Context) {
         appContext = context.applicationContext
@@ -128,7 +165,7 @@ class MonFoyerViewModel : ViewModel() {
     private suspend fun tmdbFetch(path: String): JSONObject {
         val sep = if ('?' in path) '&' else '?'
         val url = "https://api.themoviedb.org/3$path${sep}api_key=${BuildConfig.TMDB_API_KEY}&language=fr-FR"
-        return withContext(Dispatchers.IO) { JSONObject(URL(url).readText()) }
+        return Net.fetchJson(url)
     }
 
     private fun JSONObject.toTmdbMedia(): TmdbMedia {
@@ -150,13 +187,18 @@ class MonFoyerViewModel : ViewModel() {
     private fun JSONArray.toTmdbList(): List<TmdbMedia> =
         (0 until length()).map { getJSONObject(it).toTmdbMedia() }
 
-    fun loadTmdbHome() {
+    fun loadTmdbHome(force: Boolean = false) {
+        // I6 : ne pas relancer 3 appels reseau a chaque entree dans l'onglet.
+        if (!force && state.tmdbTrending.isNotEmpty()) return
         viewModelScope.launch {
             runCatching {
-                val trending = tmdbFetch("/trending/all/week").getJSONArray("results").toTmdbList()
-                val movies = tmdbFetch("/movie/popular").getJSONArray("results").toTmdbList()
-                val tv = tmdbFetch("/tv/popular").getJSONArray("results").toTmdbList()
-                Triple(trending, movies, tv)
+                // Les 3 requetes en parallele (avant : sequentiel = 3x plus lent).
+                coroutineScope {
+                    val trending = async { tmdbFetch("/trending/all/week").getJSONArray("results").toTmdbList() }
+                    val movies = async { tmdbFetch("/movie/popular").getJSONArray("results").toTmdbList() }
+                    val tv = async { tmdbFetch("/tv/popular").getJSONArray("results").toTmdbList() }
+                    Triple(trending.await(), movies.await(), tv.await())
+                }
             }.onSuccess { (trending, movies, tv) ->
                 state = state.copy(
                     tmdbTrending = trending,
@@ -211,7 +253,7 @@ class MonFoyerViewModel : ViewModel() {
     }
 
     private suspend fun openLibraryFetch(url: String): List<GoogleBook> {
-        val json = withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
+        val json = Net.fetchJson(url)
         val docs = json.optJSONArray("docs") ?: return emptyList()
         return (0 until docs.length()).mapNotNull { i ->
             val doc = docs.getJSONObject(i)
@@ -253,7 +295,7 @@ class MonFoyerViewModel : ViewModel() {
         return runCatching {
             val key = bookKey.removePrefix("/works/")
             val url = "https://openlibrary.org/works/$key.json"
-            val json = withContext(Dispatchers.IO) { org.json.JSONObject(java.net.URL(url).readText()) }
+            val json = Net.fetchJson(url)
             val desc = json.opt("description")
             when (desc) {
                 is String -> desc
@@ -330,10 +372,10 @@ class MonFoyerViewModel : ViewModel() {
     fun checkForUpdate(context: Context? = null, notify: Boolean = false) {
         if (state.checkingUpdate) return
         state = state.copy(checkingUpdate = true)
-        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+        // C2 : utiliser viewModelScope (avant : CoroutineScope orphelin qui fuit).
+        viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                val json = URL(UPDATE_MANIFEST_URL).readText()
-                val manifest = JSONObject(json)
+                val manifest = Net.fetchJson(UPDATE_MANIFEST_URL)
                 UpdateInfo(
                     versionCode = manifest.optInt("versionCode", 0),
                     versionName = manifest.optString("versionName"),
@@ -397,26 +439,36 @@ class MonFoyerViewModel : ViewModel() {
     fun joinHousehold(code: String) {
         val user = auth.currentUser ?: return
         val cleanedCode = code.trim().uppercase()
+        if (cleanedCode.isBlank()) {
+            setError("Entre un code foyer.")
+            return
+        }
         db.collection("householdInvites").document(cleanedCode).get()
             .addOnSuccessListener { invite ->
                 val householdId = invite.getString("householdId")
                 if (householdId == null) {
                     setError("Code foyer introuvable.")
                 } else {
-                    db.collection("households").document(householdId)
-                        .collection("members").document(user.uid).set(
-                            mapOf(
-                                "name" to (user.displayName ?: "Membre"),
-                                "email" to (user.email ?: ""),
-                                "role" to "member",
-                                "color" to memberColorLong(user.uid),
-                                "createdAt" to FieldValue.serverTimestamp()
-                            )
-                        ).addOnSuccessListener {
-                            db.collection("users").document(user.uid)
-                                .set(mapOf("householdId" to householdId, "updatedAt" to FieldValue.serverTimestamp()))
-                            logActivity(householdId, "a rejoint le foyer")
-                        }
+                    // I4 : ecriture atomique (membre + lien user) pour eviter toute
+                    // incoherence, avec gestion d'echec explicite.
+                    val batch = db.batch()
+                    batch.set(
+                        db.collection("households").document(householdId).collection("members").document(user.uid),
+                        mapOf(
+                            "name" to (user.displayName ?: "Membre"),
+                            "email" to (user.email ?: ""),
+                            "role" to "member",
+                            "color" to memberColorLong(user.uid),
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    batch.set(
+                        db.collection("users").document(user.uid),
+                        mapOf("householdId" to householdId, "updatedAt" to FieldValue.serverTimestamp())
+                    )
+                    batch.commit()
+                        .addOnSuccessListener { logActivity(householdId, "a rejoint le foyer") }
+                        .addOnFailureListener { setError(it.message ?: "Impossible de rejoindre ce foyer.") }
                 }
             }
             .addOnFailureListener { setError(it.message ?: "Impossible de rejoindre ce foyer.") }
@@ -424,8 +476,10 @@ class MonFoyerViewModel : ViewModel() {
 
     fun setMonthlyBudget(value: String) {
         val household = state.household ?: return
-        val amount = value.parseMoneyOrNull() ?: return
+        // I5 : refuser un budget negatif (cassait l'affichage "reste a vivre").
+        val amount = value.parseMoneyOrNull()?.coerceAtLeast(0.0) ?: return
         db.collection("households").document(household.id).update("monthlyBudget", amount)
+        showSnackbar("Budget enregistre")
     }
 
     fun addShoppingItem(name: String) {
@@ -444,6 +498,7 @@ class MonFoyerViewModel : ViewModel() {
                 "favorite" to false
             )
         ) { "a ajoute $itemName aux courses" }
+        showSnackbar("$itemName ajoute aux courses")
     }
 
     fun addBill(label: String, amount: String) {
@@ -451,6 +506,7 @@ class MonFoyerViewModel : ViewModel() {
         val cleanAmount = amount.parseMoneyOrNull() ?: return
         if (cleanLabel.isBlank() || cleanAmount <= 0.0) return
         add("bills", mapOf("label" to cleanLabel, "amount" to cleanAmount, "paid" to false)) { "a ajoute une facture $cleanLabel" }
+        showSnackbar("Facture \"$cleanLabel\" ajoutee")
     }
 
     fun addEvent(
@@ -481,6 +537,7 @@ class MonFoyerViewModel : ViewModel() {
                 "typeColor" to type.color
             )
         ) { "a ajoute l'evenement $title" }
+        showSnackbar("Evenement \"$title\" ajoute")
     }
 
     fun updateEvent(
@@ -523,7 +580,11 @@ class MonFoyerViewModel : ViewModel() {
         refreshEventTypes()
     }
 
-    fun addNote(title: String, body: String) = add("notes", mapOf("title" to title, "body" to body)) { "a ajoute une note" }
+    fun addNote(title: String, body: String) {
+        if (title.isBlank() && body.isBlank()) return
+        add("notes", mapOf("title" to title, "body" to body)) { "a ajoute une note" }
+        showSnackbar("Note enregistree")
+    }
 
     // Point 4f: addTask accepts repeatInterval and priority
     fun addTask(title: String, description: String, dueDate: String, emoji: String, member: Member?, repeatInterval: String = "none", priority: String = "normal") {
@@ -654,6 +715,7 @@ class MonFoyerViewModel : ViewModel() {
                 "createdAt" to FieldValue.serverTimestamp()
             ))
             .addOnSuccessListener { logActivity("a ajoute une depense : $label (${"%.2f".format(cleanAmount)} EUR)") }
+        showSnackbar("Depense \"${label.trim()}\" ajoutee")
     }
 
     fun deleteExpense(expenseId: String) {
@@ -676,6 +738,7 @@ class MonFoyerViewModel : ViewModel() {
                 "createdAt" to FieldValue.serverTimestamp()
             ))
             .addOnSuccessListener { logActivity("a ajoute la recette : $title") }
+        showSnackbar("Recette \"${title.trim()}\" enregistree")
     }
 
     fun deleteRecipe(recipeId: String) {
@@ -697,6 +760,8 @@ class MonFoyerViewModel : ViewModel() {
                 ))
         }
         logActivity("a ajoute les ingredients de ${recipe.title} aux courses")
+        val count = recipe.ingredients.count { it.isNotBlank() }
+        showSnackbar("$count ingredient(s) ajoute(s) aux courses")
     }
 
     fun addContact(name: String, role: String, phone: String, email: String, note: String, emoji: String, category: String) {
@@ -704,6 +769,7 @@ class MonFoyerViewModel : ViewModel() {
         db.collection("households").document(household.id).collection("contacts")
             .add(mapOf("name" to name.trim(), "role" to role.trim(), "phone" to phone.trim(), "email" to email.trim(), "note" to note.trim(), "emoji" to emoji, "category" to category, "createdAt" to FieldValue.serverTimestamp()))
             .addOnSuccessListener { logActivity("a ajoute le contact : $name") }
+        showSnackbar("Contact \"${name.trim()}\" ajoute")
     }
 
     fun updateContact(contactId: String, name: String, role: String, phone: String, email: String, note: String, emoji: String, category: String) {
@@ -1006,13 +1072,20 @@ class MonFoyerViewModel : ViewModel() {
         }
         listeners += householdRef.collection("events").addSnapshotListener { snap, _ ->
             val today = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
-            val toDelete = snap?.documents?.filter { doc ->
-                val recurrence = doc.getString("recurrence") ?: "Aucune"
-                val date = doc.getString("date") ?: ""
-                recurrence == "Aucune" && date.isNotBlank() && date < today
-            } ?: emptyList()
-            toDelete.forEach { doc ->
-                householdRef.collection("events").document(doc.id).delete()
+            // C4 : purge des evenements passes -> une seule fois par session, par
+            // l'owner uniquement (avant : tous les membres supprimaient a chaque snapshot).
+            if (!eventsPurged && snap != null && state.household?.ownerId == state.currentUserId && state.currentUserId.isNotBlank()) {
+                eventsPurged = true
+                val batch = db.batch()
+                var count = 0
+                snap.documents.forEach { doc ->
+                    val recurrence = doc.getString("recurrence") ?: "Aucune"
+                    val date = doc.getString("date") ?: ""
+                    if (recurrence == "Aucune" && date.isNotBlank() && date < today) {
+                        batch.delete(doc.reference); count++
+                    }
+                }
+                if (count > 0) batch.commit()
             }
             state = state.copy(events = snap?.documents?.mapNotNull { doc ->
                 val date = doc.getString("date") ?: ""
@@ -1212,6 +1285,7 @@ class MonFoyerViewModel : ViewModel() {
         val kept = if (keepFirst) listeners.firstOrNull() else null
         listeners.filter { it != kept }.forEach { it.remove() }
         listeners = kept?.let { mutableListOf(it) } ?: mutableListOf()
+        eventsPurged = false
     }
 
     private fun setError(message: String) {

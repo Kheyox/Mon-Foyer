@@ -21,7 +21,7 @@ internal val Apricot = Color(0xFFFFD0A8)
 internal val SoftGrey = Color(0xFFF2EEE6)
 internal val CardBorder = Color(0xFFE7DDCF)
 internal val Ink = Color(0xFF17201D)
-internal val Muted = Color(0xFF7F776D)
+internal val Muted = Color(0xFF6B6359) // assombri pour le contraste (WCAG AA sur fond Cream)
 internal val Paper = Color(0xFFFFFFFB)
 internal val Clay = Color(0xFFC96D52)
 

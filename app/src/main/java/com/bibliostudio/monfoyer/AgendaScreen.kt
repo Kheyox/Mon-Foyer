@@ -72,13 +72,18 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var visibleMonth by remember { mutableStateOf(YearMonth.from(selectedDate)) }
     var viewMode by remember { mutableStateOf(AgendaViewMode.Month) }
+    var searchOpen by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     val selectedDateText = selectedDate.format(DateTimeFormatter.ISO_DATE)
     val selectedEvents = vm.state.events.filter { it.date == selectedDateText }
     ModulePanel(title = "Calendrier") {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 Spacer(Modifier.weight(1f))
-                RoundIconButton(icon = Icons.Filled.Search, tint = Muted, onClick = {})
+                RoundIconButton(icon = Icons.Filled.Search, tint = if (searchOpen) DeepGreen else Muted, onClick = {
+                    searchOpen = !searchOpen
+                    if (!searchOpen) searchQuery = ""
+                })
                 RoundIconButton(icon = Icons.Filled.IosShare, tint = Muted, onClick = {
                     selectedEvents.firstOrNull()?.let { exportEventToCalendar(context, it) }
                 })
@@ -88,7 +93,14 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
                     }
                 }
             }
+            if (searchOpen) {
+                Spacer(Modifier.height(12.dp))
+                SoftInput(value = searchQuery, onValueChange = { searchQuery = it }, label = "Rechercher un evenement...", leadingIcon = Icons.Filled.Search)
+            }
             Spacer(Modifier.height(12.dp))
+          }
+          if (searchQuery.isBlank()) {
+            item {
             // View mode toggle
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 AgendaViewMode.values().forEach { mode ->
@@ -164,23 +176,32 @@ fun AgendaScreen(vm: MonFoyerViewModel) {
                 }
             }
             Spacer(Modifier.height(12.dp))
+          }
         }
-        items(vm.state.events) { event ->
+        val q = searchQuery.trim().lowercase(Locale.FRANCE)
+        val displayedEvents = vm.state.events
+            .filterNot { it.id in vm.state.hiddenIds }
+            .filter { q.isBlank() || it.title.lowercase(Locale.FRANCE).contains(q) || it.owner.lowercase(Locale.FRANCE).contains(q) || it.location.lowercase(Locale.FRANCE).contains(q) }
+            .sortedBy { it.date }
+        if (q.isNotBlank() && displayedEvents.isEmpty()) {
+            item { EmptyState("🔍", "Aucun resultat", "Aucun evenement ne correspond a \"$searchQuery\".") }
+        }
+        items(displayedEvents, key = { it.id }) { event ->
             Surface(
                 color = Color.White,
                 shape = RoundedCornerShape(AppRadius),
                 border = androidx.compose.foundation.BorderStroke(1.4.dp, CardBorder),
-                modifier = Modifier.fillMaxWidth().clickable { editingEvent = event }
+                modifier = Modifier.fillMaxWidth().animateItem().clickable { editingEvent = event }
             ) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(event.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink)
-                        Text(listOf(event.date, if (event.allDay) "Toute la journee" else event.time, event.owner).filter { it.isNotBlank() }.joinToString(" - "), fontSize = 16.sp, color = Muted)
+                        Text(event.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(listOf(event.date, if (event.allDay) "Toute la journee" else event.time, event.owner).filter { it.isNotBlank() }.joinToString(" - "), fontSize = 16.sp, color = Muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                     IconButton(onClick = { exportEventToCalendar(context, event) }) {
                         Icon(Icons.Filled.IosShare, contentDescription = "Exporter", tint = Muted, modifier = Modifier.size(22.dp))
                     }
-                    DeleteButton { vm.delete("events", event.id) }
+                    DeleteButton { vm.deleteWithUndo("events", event.id, event.title.ifBlank { "Evenement" }) }
                 }
             }
         }
