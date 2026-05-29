@@ -150,26 +150,28 @@ fun FlowerMark() {
 fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
     val mood = moduleMood(title)
     Surface(
-        color = Color(0xFFF8F7F5),
+        color = Color(0xFFFBFAF8),
         shape = RoundedCornerShape(topStart = PanelRadius, topEnd = PanelRadius),
         modifier = Modifier.fillMaxSize()
     ) {
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 28.dp).navigationBarsPadding()
+            modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 24.dp).navigationBarsPadding()
         ) {
             item {
-                Box(Modifier.width(58.dp).height(5.dp).clip(RoundedCornerShape(50)).background(CardBorder))
-                Spacer(Modifier.height(24.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(mood.first, fontSize = 36.sp)
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(title, fontSize = 32.sp, fontWeight = FontWeight.Black, color = Ink)
-                        Text(mood.third, fontSize = 14.sp, color = Muted)
+                    Surface(color = mood.second, shape = RoundedCornerShape(20.dp), modifier = Modifier.size(58.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(mood.first, fontSize = 30.sp)
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(title, fontSize = 30.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(mood.third, fontSize = 13.5.sp, lineHeight = 16.sp, color = Muted, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(18.dp))
             }
             content()
             item { Spacer(Modifier.height(92.dp)) }
@@ -179,8 +181,8 @@ fun ModulePanel(title: String, content: LazyListScope.() -> Unit) {
 
 @Composable
 fun EmptyState(emoji: String, title: String, body: String) {
-    Surface(color = Color.White, shape = RoundedCornerShape(28.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder), modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.padding(18.dp)) {
+    Surface(color = Color.White, shape = RoundedCornerShape(28.dp), shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
+        Box(Modifier.padding(20.dp)) {
             Canvas(Modifier.matchParentSize()) {
                 drawCircle(Mint.copy(alpha = 0.55f), radius = 58.dp.toPx(), center = Offset(size.width - 12.dp.toPx(), 8.dp.toPx()))
                 drawCircle(Lemon.copy(alpha = 0.32f), radius = 34.dp.toPx(), center = Offset(20.dp.toPx(), size.height - 8.dp.toPx()))
@@ -192,9 +194,9 @@ fun EmptyState(emoji: String, title: String, body: String) {
                     }
                 }
                 Spacer(Modifier.width(14.dp))
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
-                    Text(body, fontSize = 14.sp, lineHeight = 17.sp, color = Muted, fontWeight = FontWeight.Medium)
+                    Text(body, fontSize = 14.sp, lineHeight = 18.sp, color = Muted, fontWeight = FontWeight.Medium)
                 }
             }
         }

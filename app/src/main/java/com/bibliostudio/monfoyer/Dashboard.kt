@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
@@ -37,6 +39,7 @@ import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun Dashboard(vm: MonFoyerViewModel) {
@@ -78,90 +82,95 @@ fun Dashboard(vm: MonFoyerViewModel) {
             )
         )
     }
-    LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp).navigationBarsPadding()
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp).navigationBarsPadding()
     ) {
-        item {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Bonjour 👋",
-                fontSize = 15.sp,
-                color = Muted,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                state.household?.name ?: "Mon Foyer",
-                fontSize = 34.sp,
-                lineHeight = 36.sp,
-                fontWeight = FontWeight.Black,
-                color = Ink
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Tout le quotidien familial, clair et partage.",
-                fontSize = 15.sp,
-                color = Muted
-            )
-            Spacer(Modifier.height(16.dp))
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            DashboardHero(householdName = state.household?.name ?: "Mon Foyer")
         }
-        item { HomeInsightStrip(state, onNavigate = { vm.select(it) }) }
+        item(span = { GridItemSpan(maxLineSpan) }) { HomeInsightStrip(state, onNavigate = { vm.select(it) }) }
         if (state.members.isNotEmpty()) {
-            item { MemberColorStrip(state.members) }
+            item(span = { GridItemSpan(maxLineSpan) }) { MemberColorStrip(state.members) }
         }
-        items(visibleModules, key = { it.tab }) { tile ->
-            ModuleCard(tile = tile, onClick = { vm.select(tile.tab) })
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text("Les espaces du foyer", fontSize = 17.sp, fontWeight = FontWeight.Black, color = Ink, modifier = Modifier.padding(top = 4.dp))
         }
-        item { Spacer(Modifier.height(76.dp)) }
+        gridItems(visibleModules, key = { it.tab }) { tile ->
+            ModuleGridTile(tile = tile, onClick = { vm.select(tile.tab) })
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(80.dp)) }
     }
 }
 
 @Composable
-fun ModuleCard(tile: ModuleTile, onClick: () -> Unit) {
+fun DashboardHero(householdName: String) {
+    val today = remember {
+        LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRANCE))
+            .replaceFirstChar { it.titlecase(Locale.FRANCE) }
+    }
+    val greeting = remember {
+        when (java.time.LocalTime.now().hour) {
+            in 5..11 -> "Bonjour"
+            in 12..17 -> "Bon apres-midi"
+            else -> "Bonsoir"
+        }
+    }
+    Column {
+        Spacer(Modifier.height(4.dp))
+        Text("$greeting 👋", fontSize = 15.sp, color = Muted, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            householdName,
+            fontSize = 32.sp,
+            lineHeight = 36.sp,
+            fontWeight = FontWeight.Black,
+            color = Ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(today, fontSize = 14.sp, color = Muted, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(14.dp))
+    }
+}
+
+@Composable
+fun ModuleGridTile(tile: ModuleTile, onClick: () -> Unit) {
     Surface(
         color = Color.Transparent,
-        shape = RoundedCornerShape(20.dp),
-        shadowElevation = 3.dp,
+        shape = RoundedCornerShape(26.dp),
+        shadowElevation = 2.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .height(82.dp)
-            .background(Brush.horizontalGradient(tile.colors), RoundedCornerShape(20.dp))
+            .height(134.dp)
+            .background(Brush.linearGradient(tile.colors), RoundedCornerShape(26.dp))
             .clickable(onClick = onClick)
     ) {
-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .width(5.dp)
-                    .fillMaxHeight()
-                    .background(
-                        tile.accent,
-                        RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp)
-                    )
-            )
-            Spacer(Modifier.width(16.dp))
-            Surface(
-                color = tile.accent.copy(alpha = 0.13f),
-                shape = CircleShape,
-                modifier = Modifier.size(50.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(tile.emoji, fontSize = 24.sp)
-                }
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(tile.title, fontSize = 19.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1)
-                Text(tile.subtitle, fontSize = 13.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            tile.count?.let { count ->
-                Surface(color = tile.accent, shape = CircleShape, modifier = Modifier.size(34.dp)) {
+        Box(Modifier.fillMaxSize().padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Surface(color = Color.White.copy(alpha = 0.65f), shape = CircleShape, modifier = Modifier.size(48.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(count, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        Text(tile.emoji, fontSize = 24.sp)
+                    }
+                }
+                tile.count?.let { count ->
+                    Surface(color = tile.accent, shape = CircleShape) {
+                        Box(
+                            modifier = Modifier.defaultMinSize(minWidth = 28.dp, minHeight = 28.dp).padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(count, fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        }
                     }
                 }
             }
-            Spacer(Modifier.width(16.dp))
+            Column(Modifier.align(Alignment.BottomStart)) {
+                Text(tile.title, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tile.subtitle, fontSize = 11.5.sp, lineHeight = 14.sp, color = Ink.copy(alpha = 0.62f), fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
