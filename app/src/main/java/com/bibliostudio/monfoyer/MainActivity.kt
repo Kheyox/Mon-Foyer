@@ -307,6 +307,9 @@ fun HomeShell(vm: MonFoyerViewModel) {
                     Tab.Notes -> NotesScreen(vm)
                     Tab.Members -> MembersScreen(vm)
                     Tab.Budget -> BudgetScreen(vm)
+                    Tab.Expenses -> ExpensesScreen(vm)
+                    Tab.Recipes -> RecipesScreen(vm)
+                    Tab.Contacts -> ContactsScreen(vm)
                 }
             }
         }
@@ -378,7 +381,7 @@ fun HomeMenu(
     onSignOut: () -> Unit
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = Color.White) {
-        listOf(Tab.Home, Tab.Calendar, Tab.Tasks, Tab.Shopping, Tab.Requests, Tab.Activity, Tab.Birthdays, Tab.Notes, Tab.Members, Tab.Budget).forEach { tab ->
+        listOf(Tab.Home, Tab.Calendar, Tab.Tasks, Tab.Shopping, Tab.Requests, Tab.Activity, Tab.Birthdays, Tab.Notes, Tab.Members, Tab.Budget, Tab.Expenses, Tab.Recipes, Tab.Contacts).forEach { tab ->
             DropdownMenuItem(
                 text = { Text(tab.label, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
                 leadingIcon = { Icon(tab.icon, contentDescription = null, tint = DeepGreen) },

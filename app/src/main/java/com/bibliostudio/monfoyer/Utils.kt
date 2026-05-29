@@ -59,6 +59,9 @@ fun moduleMood(title: String): Triple<String, Color, String> = when {
     "anniversaire" in title.lowercase(Locale.FRANCE) -> Triple("🎂", Color(0xFFFFE0EA), "Les dates qui comptent.")
     "note" in title.lowercase(Locale.FRANCE) -> Triple("📝", Color(0xFFFFE7D4), "Les idees et pense-betes.")
     "foyer" in title.lowercase(Locale.FRANCE) -> Triple("🏡", Color(0xFFE0F5F1), "Membres, couleurs et invitation.")
+    "depense" in title.lowercase(Locale.FRANCE) -> Triple("⚖️", Color(0xFFFFF0D9), "Qui a payé quoi.")
+    "recette" in title.lowercase(Locale.FRANCE) -> Triple("🍽️", Color(0xFFFFF3E0), "Les plats du foyer.")
+    "contact" in title.lowercase(Locale.FRANCE) -> Triple("📞", Color(0xFFE8F5E9), "Les numéros qui comptent.")
     else -> Triple("✨", SoftGrey, "Un espace simple et vivant.")
 }
 
