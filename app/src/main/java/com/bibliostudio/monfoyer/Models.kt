@@ -1,12 +1,15 @@
 package com.bibliostudio.monfoyer
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.ui.graphics.Color
@@ -130,6 +133,37 @@ data class FoyerNotification(
     val read: Boolean = false,
     val createdAtMillis: Long = 0L
 )
+data class Expense(
+    val id: String = "",
+    val label: String = "",
+    val amount: Double = 0.0,
+    val payerId: String = "",
+    val payerName: String = "",
+    val splitWith: List<String> = emptyList(),
+    val category: String = "Autre",
+    val createdAtMillis: Long = 0L
+)
+data class Recipe(
+    val id: String = "",
+    val title: String = "",
+    val emoji: String = "🍽️",
+    val description: String = "",
+    val ingredients: List<String> = emptyList(),
+    val steps: List<String> = emptyList(),
+    val servings: Int = 2,
+    val prepMinutes: Int = 0,
+    val addedByName: String = ""
+)
+data class FoyerContact(
+    val id: String = "",
+    val name: String = "",
+    val role: String = "",
+    val phone: String = "",
+    val email: String = "",
+    val note: String = "",
+    val emoji: String = "👤",
+    val category: String = "Autre"
+)
 
 data class AppUiState(
     val signedIn: Boolean = false,
@@ -165,7 +199,10 @@ data class AppUiState(
     val booksSearchQuery: String = "",
     val booksSearching: Boolean = false,
     val booksSearchError: Boolean = false,
-    val notifications: List<FoyerNotification> = emptyList()
+    val notifications: List<FoyerNotification> = emptyList(),
+    val expenses: List<Expense> = emptyList(),
+    val recipes: List<Recipe> = emptyList(),
+    val contacts: List<FoyerContact> = emptyList()
 )
 
 enum class Tab(val label: String, val icon: ImageVector) {
@@ -178,7 +215,10 @@ enum class Tab(val label: String, val icon: ImageVector) {
     Birthdays("Anniversaires", Icons.Filled.Group),
     Notes("Notes", Icons.Filled.EditNote),
     Members("Foyer", Icons.Filled.Group),
-    Budget("Budget", Icons.Filled.Payments)
+    Budget("Budget", Icons.Filled.Payments),
+    Expenses("Depenses", Icons.Filled.AccountBalance),
+    Recipes("Recettes", Icons.Filled.MenuBook),
+    Contacts("Contacts", Icons.Filled.Contacts)
 }
 
 data class ModuleTile(

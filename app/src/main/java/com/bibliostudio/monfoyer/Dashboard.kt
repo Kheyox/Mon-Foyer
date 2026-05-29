@@ -27,7 +27,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.ViewList
@@ -55,7 +58,10 @@ fun Dashboard(vm: MonFoyerViewModel) {
         ModuleTile(Tab.Birthdays, "Anniversaires", "Les dates a ne pas oublier", state.birthdays.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD6E3), Color(0xFFD8CBFF)), Icons.Filled.Group, "🎂", Color(0xFFB256B4)),
         ModuleTile(Tab.Notes, "Notes", "Idees et pense-betes", state.notes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFD9B8), Color(0xFFFFB8A8)), Icons.Filled.EditNote, "📝", Clay),
         ModuleTile(Tab.Members, "Foyer", "Membres, couleurs et invitation", state.members.size.toString(), listOf(Color(0xFFD6F4EF), Color(0xFFBCE8F5)), Icons.Filled.Group, "🏡", DeepGreen),
-        ModuleTile(Tab.Budget, "Budget", "Charges, loyer et factures", state.bills.count { !it.paid }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFF8E1), Color(0xFFFFECB3)), Icons.Filled.Payments, "💶", Color(0xFFFF8F00))
+        ModuleTile(Tab.Budget, "Budget", "Charges, loyer et factures", state.bills.count { !it.paid }.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFF8E1), Color(0xFFFFECB3)), Icons.Filled.Payments, "💶", Color(0xFFFF8F00)),
+        ModuleTile(Tab.Expenses, "Depenses", "Qui a paye quoi dans le foyer", state.expenses.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFF0F4FF), Color(0xFFD9E5FF)), Icons.Filled.AccountBalance, "⚖️", Color(0xFF3A5BD9)),
+        ModuleTile(Tab.Recipes, "Recettes", "Le carnet de recettes du foyer", state.recipes.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFFFF3E0), Color(0xFFFFE0B2)), Icons.Filled.MenuBook, "🍽️", Color(0xFFE65100)),
+        ModuleTile(Tab.Contacts, "Contacts", "Plombier, medecin, livraison...", state.contacts.size.takeIf { it > 0 }?.toString(), listOf(Color(0xFFE8F5E9), Color(0xFFC8E6C9)), Icons.Filled.Contacts, "📞", Color(0xFF2E7D32))
     )
     val visibleModules = modules.toMutableList().apply {
         add(

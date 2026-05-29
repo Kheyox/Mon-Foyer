@@ -638,6 +638,85 @@ class MonFoyerViewModel : ViewModel() {
             .addOnFailureListener { setError(it.message ?: "Demande impossible.") }
     }
 
+    fun addExpense(label: String, amount: String, payerId: String, payerName: String, splitWith: List<String>, category: String) {
+        val cleanAmount = amount.replace(',', '.').toDoubleOrNull() ?: return
+        if (cleanAmount <= 0 || label.isBlank()) return
+        val household = state.household ?: return
+        db.collection("households").document(household.id).collection("expenses")
+            .add(mapOf(
+                "label" to label.trim(),
+                "amount" to cleanAmount,
+                "payerId" to payerId,
+                "payerName" to payerName,
+                "splitWith" to splitWith,
+                "category" to category,
+                "createdAtMillis" to System.currentTimeMillis(),
+                "createdAt" to FieldValue.serverTimestamp()
+            ))
+            .addOnSuccessListener { logActivity("a ajoute une depense : $label (${"%.2f".format(cleanAmount)} EUR)") }
+    }
+
+    fun deleteExpense(expenseId: String) {
+        val household = state.household ?: return
+        db.collection("households").document(household.id).collection("expenses").document(expenseId).delete()
+    }
+
+    fun addRecipe(title: String, emoji: String, description: String, ingredients: List<String>, steps: List<String>, servings: Int, prepMinutes: Int) {
+        val household = state.household ?: return
+        db.collection("households").document(household.id).collection("recipes")
+            .add(mapOf(
+                "title" to title.trim(),
+                "emoji" to emoji,
+                "description" to description.trim(),
+                "ingredients" to ingredients,
+                "steps" to steps,
+                "servings" to servings,
+                "prepMinutes" to prepMinutes,
+                "addedByName" to state.userName,
+                "createdAt" to FieldValue.serverTimestamp()
+            ))
+            .addOnSuccessListener { logActivity("a ajoute la recette : $title") }
+    }
+
+    fun deleteRecipe(recipeId: String) {
+        val household = state.household ?: return
+        db.collection("households").document(household.id).collection("recipes").document(recipeId).delete()
+    }
+
+    fun addRecipeIngredientsToShopping(recipe: Recipe) {
+        val household = state.household ?: return
+        recipe.ingredients.filter { it.isNotBlank() }.forEach { ingredient ->
+            db.collection("households").document(household.id).collection("shoppingItems")
+                .add(mapOf(
+                    "name" to ingredient.trim(),
+                    "done" to false,
+                    "quantity" to 1,
+                    "category" to shoppingCategory(ingredient),
+                    "favorite" to false,
+                    "createdAt" to FieldValue.serverTimestamp()
+                ))
+        }
+        logActivity("a ajoute les ingredients de ${recipe.title} aux courses")
+    }
+
+    fun addContact(name: String, role: String, phone: String, email: String, note: String, emoji: String, category: String) {
+        val household = state.household ?: return
+        db.collection("households").document(household.id).collection("contacts")
+            .add(mapOf("name" to name.trim(), "role" to role.trim(), "phone" to phone.trim(), "email" to email.trim(), "note" to note.trim(), "emoji" to emoji, "category" to category, "createdAt" to FieldValue.serverTimestamp()))
+            .addOnSuccessListener { logActivity("a ajoute le contact : $name") }
+    }
+
+    fun updateContact(contactId: String, name: String, role: String, phone: String, email: String, note: String, emoji: String, category: String) {
+        val household = state.household ?: return
+        db.collection("households").document(household.id).collection("contacts").document(contactId)
+            .update(mapOf("name" to name.trim(), "role" to role.trim(), "phone" to phone.trim(), "email" to email.trim(), "note" to note.trim(), "emoji" to emoji, "category" to category))
+    }
+
+    fun deleteContact(contactId: String) {
+        val household = state.household ?: return
+        db.collection("households").document(household.id).collection("contacts").document(contactId).delete()
+    }
+
     fun updateMediaRequestStatus(request: MediaRequest, status: String) {
         val household = state.household ?: return
         if (!state.isCurrentUserAdmin()) return
@@ -1011,6 +1090,53 @@ class MonFoyerViewModel : ViewModel() {
                     )
                 }.orEmpty())
             }
+
+        listeners += householdRef.collection("expenses")
+            .orderBy("createdAtMillis", Query.Direction.DESCENDING)
+            .addSnapshotListener { snap, _ ->
+                state = state.copy(expenses = snap?.documents?.map { doc ->
+                    @Suppress("UNCHECKED_CAST")
+                    Expense(
+                        id = doc.id,
+                        label = doc.getString("label") ?: "",
+                        amount = doc.getDouble("amount") ?: 0.0,
+                        payerId = doc.getString("payerId") ?: "",
+                        payerName = doc.getString("payerName") ?: "",
+                        splitWith = (doc.get("splitWith") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                        category = doc.getString("category") ?: "Autre",
+                        createdAtMillis = doc.getLong("createdAtMillis") ?: 0L
+                    )
+                }.orEmpty())
+            }
+        listeners += householdRef.collection("recipes").addSnapshotListener { snap, _ ->
+            state = state.copy(recipes = snap?.documents?.map { doc ->
+                Recipe(
+                    id = doc.id,
+                    title = doc.getString("title") ?: "",
+                    emoji = doc.getString("emoji") ?: "🍽️",
+                    description = doc.getString("description") ?: "",
+                    ingredients = (doc.get("ingredients") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                    steps = (doc.get("steps") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                    servings = (doc.getLong("servings") ?: 2).toInt(),
+                    prepMinutes = (doc.getLong("prepMinutes") ?: 0).toInt(),
+                    addedByName = doc.getString("addedByName") ?: ""
+                )
+            }.orEmpty())
+        }
+        listeners += householdRef.collection("contacts").addSnapshotListener { snap, _ ->
+            state = state.copy(contacts = snap?.documents?.map { doc ->
+                FoyerContact(
+                    id = doc.id,
+                    name = doc.getString("name") ?: "",
+                    role = doc.getString("role") ?: "",
+                    phone = doc.getString("phone") ?: "",
+                    email = doc.getString("email") ?: "",
+                    note = doc.getString("note") ?: "",
+                    emoji = doc.getString("emoji") ?: "👤",
+                    category = doc.getString("category") ?: "Autre"
+                )
+            }.orEmpty())
+        }
 
         val uid = state.currentUserId
         if (uid.isNotBlank()) {
