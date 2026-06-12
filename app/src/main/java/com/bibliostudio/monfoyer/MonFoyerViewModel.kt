@@ -33,6 +33,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.absoluteValue
 
+private const val RELEASES_LATEST_URL = "https://api.github.com/repos/Kheyox/Mon-Foyer/releases/latest"
+// Secours si l'API GitHub est indisponible (rate limit, etc.)
 private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/Kheyox/Mon-Foyer/main/update.json"
 
 class MonFoyerViewModel : ViewModel() {
@@ -378,41 +380,103 @@ class MonFoyerViewModel : ViewModel() {
         state = state.copy(checkingUpdate = true)
         // C2 : utiliser viewModelScope (avant : CoroutineScope orphelin qui fuit).
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
-                val manifest = Net.fetchJson(UPDATE_MANIFEST_URL)
-                UpdateInfo(
-                    versionCode = manifest.optInt("versionCode", 0),
-                    versionName = manifest.optString("versionName"),
-                    apkUrl = manifest.optString("apkUrl"),
-                    notes = manifest.optString("notes")
-                )
-            }.onSuccess { info ->
-                withContext(Dispatchers.Main) {
-                    val update = info.takeIf { it.versionCode > BuildConfig.VERSION_CODE && it.apkUrl.isNotBlank() }
-                    if (update != null && notify && context != null) {
-                        notifyUpdateOnce(context, update)
+            runCatching { fetchLatestReleaseUpdate() }
+                .recoverCatching { fetchManifestUpdate() }
+                .onSuccess { info ->
+                    withContext(Dispatchers.Main) {
+                        val update = info.takeIf { isNewerThanInstalled(it) && it.apkUrl.isNotBlank() }
+                        if (update != null && notify && context != null) {
+                            notifyUpdateOnce(context, update)
+                        }
+                        state = state.copy(checkingUpdate = false, updateInfo = update)
                     }
-                    state = state.copy(checkingUpdate = false, updateInfo = update)
+                }.onFailure {
+                    withContext(Dispatchers.Main) {
+                        state = state.copy(checkingUpdate = false)
+                    }
+                }
+        }
+    }
+
+    // Interroge directement les Releases GitHub : plus besoin de maintenir update.json.
+    private suspend fun fetchLatestReleaseUpdate(): UpdateInfo {
+        val release = Net.fetchJson(RELEASES_LATEST_URL)
+        val assets = release.optJSONArray("assets")
+        var apkUrl = ""
+        for (i in 0 until (assets?.length() ?: 0)) {
+            val url = assets!!.getJSONObject(i).optString("browser_download_url")
+            if (url.endsWith(".apk")) { apkUrl = url; break }
+        }
+        return UpdateInfo(
+            versionName = release.optString("tag_name").removePrefix("v"),
+            apkUrl = apkUrl,
+            notes = release.optString("body").trim()
+        )
+    }
+
+    private suspend fun fetchManifestUpdate(): UpdateInfo {
+        val manifest = Net.fetchJson(UPDATE_MANIFEST_URL)
+        return UpdateInfo(
+            versionCode = manifest.optInt("versionCode", 0),
+            versionName = manifest.optString("versionName"),
+            apkUrl = manifest.optString("apkUrl"),
+            notes = manifest.optString("notes")
+        )
+    }
+
+    private fun isNewerThanInstalled(info: UpdateInfo): Boolean {
+        if (info.versionCode > 0) return info.versionCode > BuildConfig.VERSION_CODE
+        // L'API Releases ne fournit pas de versionCode : comparaison semver des noms.
+        val remote = info.versionName.split(".").map { it.toIntOrNull() ?: return false }
+        val local = BuildConfig.VERSION_NAME.split(".").map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(remote.size, local.size)) {
+            val r = remote.getOrElse(i) { 0 }
+            val l = local.getOrElse(i) { 0 }
+            if (r != l) return r > l
+        }
+        return false
+    }
+
+    /**
+     * Telecharge l'APK en arriere-plan puis lance l'installateur systeme.
+     * (Android demande toujours une derniere confirmation a l'utilisateur.)
+     */
+    fun downloadAndInstallUpdate(context: Context) {
+        val update = state.updateInfo ?: return
+        if (state.updateDownloadProgress != null) return
+        val appContext = context.applicationContext
+        state = state.copy(updateDownloadProgress = 0f)
+        viewModelScope.launch {
+            runCatching {
+                UpdateInstaller.download(appContext, update) { progress ->
+                    withContext(Dispatchers.Main) {
+                        state = state.copy(updateDownloadProgress = progress)
+                    }
+                }
+            }.onSuccess { apk ->
+                state = state.copy(updateDownloadProgress = null)
+                val launched = UpdateInstaller.install(appContext, apk)
+                if (!launched) {
+                    showSnackbar("Autorisez Mon Foyer a installer des apps, puis retouchez Installer.")
                 }
             }.onFailure {
-                withContext(Dispatchers.Main) {
-                    state = state.copy(checkingUpdate = false)
-                }
+                state = state.copy(updateDownloadProgress = null)
+                showSnackbar("Telechargement de la mise a jour impossible.")
             }
         }
     }
 
     private fun notifyUpdateOnce(context: Context, update: UpdateInfo) {
         val prefs = context.getSharedPreferences("mon_foyer_updates", Context.MODE_PRIVATE)
-        val key = "notified_version_code"
-        if (prefs.getInt(key, 0) >= update.versionCode) return
+        val key = "notified_version_name"
+        if (prefs.getString(key, null) == update.versionName) return
         ReminderReceiver.showNow(
             context,
-            90000 + update.versionCode,
+            90000 + update.versionName.hashCode().absoluteValue % 1000,
             "Mise a jour Mon Foyer",
             "La version ${update.versionName} est disponible."
         )
-        prefs.edit().putInt(key, update.versionCode).apply()
+        prefs.edit().putString(key, update.versionName).apply()
     }
 
     fun clearUpdateInfo() {
