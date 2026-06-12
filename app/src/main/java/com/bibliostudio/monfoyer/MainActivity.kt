@@ -56,6 +56,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -320,7 +321,12 @@ fun HomeShell(vm: MonFoyerViewModel) {
                 )
             }
             vm.state.updateInfo?.let { update ->
-                UpdateAvailableDialog(update = update, onDismiss = { vm.clearUpdateInfo() })
+                UpdateAvailableDialog(
+                    update = update,
+                    downloadProgress = vm.state.updateDownloadProgress,
+                    onInstall = { vm.downloadAndInstallUpdate(context) },
+                    onDismiss = { vm.clearUpdateInfo() }
+                )
             }
         }
     }
@@ -500,32 +506,48 @@ fun AppHeader(
 }
 
 @Composable
-fun UpdateAvailableDialog(update: UpdateInfo, onDismiss: () -> Unit) {
-    val context = LocalContext.current
+fun UpdateAvailableDialog(
+    update: UpdateInfo,
+    downloadProgress: Float?,
+    onInstall: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val downloading = downloadProgress != null
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!downloading) onDismiss() },
         title = { Text("Mise a jour disponible", fontWeight = FontWeight.Black, color = Ink) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Version ${update.versionName}", fontWeight = FontWeight.Bold, color = DeepGreen)
                 Text(update.notes.ifBlank { "Une nouvelle version de Mon Foyer est disponible." }, color = Muted)
-                Text("Android demandera une confirmation avant l'installation.", color = Muted, fontSize = 13.sp)
+                if (downloading) {
+                    LinearProgressIndicator(
+                        progress = { downloadProgress ?: 0f },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = DeepGreen
+                    )
+                    Text(
+                        "Telechargement... ${((downloadProgress ?: 0f) * 100).toInt()} %",
+                        color = Muted, fontSize = 13.sp
+                    )
+                } else {
+                    Text("Android demandera une confirmation avant l'installation.", color = Muted, fontSize = 13.sp)
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.apkUrl)))
-                    onDismiss()
-                },
+                onClick = onInstall,
+                enabled = !downloading,
                 colors = ButtonDefaults.buttonColors(containerColor = DeepGreen)
             ) {
-                Text("Installer")
+                Text(if (downloading) "Telechargement..." else "Installer")
             }
         },
         dismissButton = {
             Button(
                 onClick = onDismiss,
+                enabled = !downloading,
                 colors = ButtonDefaults.buttonColors(containerColor = SoftGrey, contentColor = Ink)
             ) {
                 Text("Plus tard")

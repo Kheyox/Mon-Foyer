@@ -192,6 +192,7 @@ data class AppUiState(
     val error: String? = null,
     val checkingUpdate: Boolean = false,
     val updateInfo: UpdateInfo? = null,
+    val updateDownloadProgress: Float? = null,
     val isOffline: Boolean = false,
     val sharedNote: String = "",
     val tmdbTrending: List<TmdbMedia> = emptyList(),
