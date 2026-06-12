@@ -33,8 +33,8 @@ android {
         applicationId = "com.bibliostudio.monfoyer"
         minSdk = 26
         targetSdk = 35
-        versionCode = 42
-        versionName = "1.0.41"
+        versionCode = 43
+        versionName = "1.0.42"
         buildConfigField("String", "TMDB_API_KEY", "\"02dcbf2c20808c9793141e2e2553d5b6\"")
     }
 
